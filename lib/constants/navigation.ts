@@ -79,6 +79,12 @@ export const navigationEntries: NavigationEntry[] = [
         permission: "sales:view",
       },
       {
+        title: "Daily Check",
+        href: "/sales/daily-check",
+        icon: "salesList",
+        permission: "daily-check:view",
+      },
+      {
         title: "Sold Items",
         href: "/sales/sold-items",
         icon: "soldItems",
@@ -162,14 +168,29 @@ export const navigationEntries: NavigationEntry[] = [
         title: "Pay Partners",
         href: "/sellers/settlements",
         icon: "supplierPayments",
-        permission: "sellers:manage",
+        permission: "seller-settlements:create",
+      },
+      {
+        title: "Collect From Partners",
+        href: "/sellers/collections",
+        icon: "customerPayments",
+        permission: "seller-settlements:create",
       },
     ],
+  },
+  {
+    type: "link",
+    title: "Expenses",
+    href: "/finance/expenses",
+    icon: "expenses",
+    roles: ["SALES"],
+    permission: "expenses:view",
   },
   {
     type: "group",
     title: "Finance",
     icon: "accounts",
+    roles: ["ADMIN"],
     items: [
       {
         title: "Accounts",
@@ -181,19 +202,19 @@ export const navigationEntries: NavigationEntry[] = [
         title: "Cash",
         href: "/finance/cash",
         icon: "cashTransfers",
-        permission: "accounts:manage",
+        permission: "cash-transfers:manage",
       },
       {
         title: "Expenses",
         href: "/finance/expenses",
         icon: "expenses",
-        permission: "expenses:manage",
+        permission: "expenses:view",
       },
       {
         title: "Ledger",
         href: "/finance/ledger",
         icon: "ledger",
-        permission: "accounts:manage",
+        permission: "ledger:view",
       },
     ],
   },
@@ -223,6 +244,7 @@ const hiddenPageTitles: NavigationItem[] = [
   { title: "Transfers", href: "/inventory/transfers", icon: "transfers" },
   { title: "Customer Payments", href: "/sales/customer-payments", icon: "customerPayments" },
   { title: "Supplier Payments", href: "/purchases/supplier-payments", icon: "supplierPayments" },
+  { title: "Partner Overview", href: "/sellers", icon: "sellers" },
   { title: "Received Records", href: "/sellers/intake-records", icon: "purchaseList" },
   { title: "Cash", href: "/finance/cash", icon: "cashTransfers" },
   { title: "Cash Transfers", href: "/finance/cash-transfers", icon: "cashTransfers" },
@@ -235,6 +257,13 @@ const hiddenPageTitles: NavigationItem[] = [
   { title: "Seller Reports", href: "/reports/sellers", icon: "reports" },
   { title: "Finance Reports", href: "/reports/finance", icon: "reports" },
 ];
+
+const hiddenGroupPrefixes = [
+  {
+    groupTitle: "Partners",
+    href: "/sellers",
+  },
+] as const;
 
 function itemAllowed(
   itemRoles: AppRole[] | undefined,
@@ -282,5 +311,13 @@ export function getOpenGroupForPath(pathname: string, role: AppRole) {
     );
   });
 
-  return match?.type === "group" ? match.title : null;
+  if (match?.type === "group") {
+    return match.title;
+  }
+
+  const hiddenMatch = hiddenGroupPrefixes.find(
+    (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
+  );
+
+  return hiddenMatch?.groupTitle ?? null;
 }

@@ -14,7 +14,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const redirectTo = sanitizeReturnToPath(getSingleSearchParam(params, "next"));
 
   return (
-    <div className="overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.34),transparent_20%),linear-gradient(135deg,rgba(12,94,120,0.98),rgba(15,23,42,0.98))] lg:grid lg:grid-cols-[1.08fr_0.92fr] lg:rounded-[2rem]">
+    <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.34),transparent_20%),linear-gradient(135deg,rgba(12,94,120,0.98),rgba(15,23,42,0.98))] lg:grid lg:grid-cols-[1.08fr_0.92fr] lg:rounded-[2rem]">
       <div className="hidden lg:block">
         <Card className="h-full overflow-hidden border-0 bg-transparent text-white shadow-none">
           <CardContent className="flex h-full flex-col justify-between gap-10 p-10">
@@ -48,13 +48,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </CardContent>
         </Card>
       </div>
-      <div className="flex min-h-screen items-center px-5 py-8 sm:px-6 lg:min-h-0 lg:bg-white/6 lg:px-7 lg:py-7">
+      <div className="flex h-full items-center px-4 py-4 sm:px-6 sm:py-6 lg:min-h-0 lg:bg-white/6 lg:px-7 lg:py-7">
         <Card className="w-full border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(248,250,252,0.98))] text-slate-950 shadow-[0_26px_70px_rgba(15,23,42,0.24)] lg:border-white/55">
-          <CardContent className="p-6 sm:p-8">
-            <div className="mx-auto max-w-md space-y-6">
-              <div className="space-y-4">
+          <CardContent className="p-5 sm:p-8">
+            <div className="mx-auto max-w-md space-y-5 sm:space-y-6">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center gap-3 lg:hidden">
-                  <div className="rounded-2xl bg-primary/10 p-3 text-primary">
+                  <div className="rounded-2xl bg-primary/10 p-2.5 text-primary sm:p-3">
                     <Package className="h-5 w-5" />
                   </div>
                   <div>
@@ -63,10 +63,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   </div>
                 </div>
                 <div className="space-y-2">
+                  <p className="text-sm leading-6 text-slate-700 lg:hidden">
+                    Manage items, purchases, sales, and stock in one place.
+                  </p>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary/90">
                     Sign In
                   </p>
-                  <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
                     Welcome back
                   </h2>
                   <p className="text-sm text-slate-600">

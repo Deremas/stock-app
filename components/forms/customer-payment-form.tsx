@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 
 type CustomerPaymentFormProps = {
   options: CustomerPaymentFormOptions;
@@ -228,8 +229,7 @@ export function CustomerPaymentForm({
               <Select id="financeAccountId" {...form.register("financeAccountId")}>
                 {availableAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name}
-                    {account.branchName ? ` | ${account.branchName}` : ""}
+                    {formatFinanceAccountLabel(account)}
                   </option>
                 ))}
               </Select>

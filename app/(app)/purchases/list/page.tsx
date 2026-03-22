@@ -27,7 +27,7 @@ export default async function Page({ searchParams }: PurchasesListPageProps) {
       config={config}
       actionLabel="New purchase"
       dialogTitle="New purchase"
-      dialogDescription="Capture a supplier purchase without leaving the purchase list."
+      dialogDescription="Capture a purchase without leaving the list. Supplier is optional for fully paid direct purchases."
       initialOpen={initialOpen}
     >
       <PurchaseForm

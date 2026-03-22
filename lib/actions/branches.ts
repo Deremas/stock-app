@@ -13,7 +13,12 @@ import {
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
-import { branchSchema, type BranchFormInput } from "@/lib/validation/branch";
+import {
+  branchSchema,
+  branchUpdateSchema,
+  type BranchFormInput,
+  type BranchUpdateFormInput,
+} from "@/lib/validation/branch";
 
 const deleteBranchSchema = z.object({
   branchId: z.string().trim().min(1, "Branch id is required."),
@@ -25,21 +30,29 @@ const setActiveBranchSchema = z.object({
 
 function buildBranchCodeSeed(name: string) {
   const seed = name.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return seed.slice(0, 8) || "BRANCH";
+  return seed || "BRANCH";
 }
 
 async function generateUniqueBranchCode(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   name: string,
+  ignoreBranchId?: string,
 ) {
   const base = buildBranchCodeSeed(name);
   let candidate = base;
   let suffix = 1;
 
-  while (await tx.branch.findUnique({ where: { code: candidate }, select: { id: true } })) {
+  while (
+    await tx.branch.findFirst({
+      where: {
+        code: candidate,
+        ...(ignoreBranchId ? { id: { not: ignoreBranchId } } : {}),
+      },
+      select: { id: true },
+    })
+  ) {
     suffix += 1;
-    const suffixText = String(suffix);
-    candidate = `${base.slice(0, Math.max(1, 11 - suffixText.length))}-${suffixText}`;
+    candidate = `${base}-${suffix}`;
   }
 
   return candidate;
@@ -267,6 +280,111 @@ export async function deleteBranchAction(input: {
     return {
       success: false,
       message: getActionErrorMessage(error, "Unable to delete the branch right now."),
+    };
+  }
+}
+
+export async function updateBranchAction(
+  input: BranchUpdateFormInput,
+): Promise<ActionResult> {
+  const actor = await getActionActor(["ADMIN"]);
+
+  if (!actor) {
+    return {
+      success: false,
+      message: "You are not allowed to update branches.",
+    };
+  }
+
+  const parsed = branchUpdateSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: parsed.error.issues[0]?.message ?? "Branch details are invalid.",
+    };
+  }
+
+  const name = parsed.data.name.trim();
+  const location = normalizeOptionalString(parsed.data.location);
+
+  try {
+    const branchName = await prisma.$transaction(async (tx) => {
+      const branch = await tx.branch.findUnique({
+        where: {
+          id: parsed.data.id,
+        },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          location: true,
+        },
+      });
+
+      if (!branch) {
+        throw new Error("Selected branch was not found.");
+      }
+
+      const existingByName = await tx.branch.findFirst({
+        where: {
+          name,
+          id: {
+            not: branch.id,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (existingByName) {
+        throw new Error("A branch with that name already exists.");
+      }
+
+      const code = await generateUniqueBranchCode(tx, name, branch.id);
+
+      await tx.branch.update({
+        where: {
+          id: branch.id,
+        },
+        data: {
+          code,
+          name,
+          ...(location ? { location } : { location: null }),
+        },
+      });
+
+      await createAuditLog(tx, {
+        actorUserId: actor.id,
+        action: "BRANCH_UPDATE",
+        entityType: "Branch",
+        entityId: branch.id,
+        branchId: branch.id,
+        before: {
+          code: branch.code,
+          name: branch.name,
+          location: branch.location ?? null,
+        },
+        after: {
+          code,
+          name,
+          location: location ?? null,
+        },
+      });
+
+      return name;
+    });
+
+    revalidatePath("/admin/branches");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      message: `${branchName} updated successfully.`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: getActionErrorMessage(error, "Unable to update the branch right now."),
     };
   }
 }

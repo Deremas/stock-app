@@ -14,6 +14,12 @@ import { Select } from "@/components/ui/select";
 
 const reportOptions = [
   {
+    id: "daily-check",
+    name: "Daily Check",
+    description: "Daily sales, partner, payout, collection, and return snapshot.",
+    href: "/sales/daily-check",
+  },
+  {
     id: "sales-profit",
     name: "Sales Profit",
     description: "Daily sales with cost, partner payable, and gross profit.",
@@ -22,7 +28,8 @@ const reportOptions = [
   {
     id: "partner-exposure",
     name: "Partner Exposure",
-    description: "Open partner stock still on hand and amounts still unpaid.",
+    description:
+      "Open received stock, assigned-out stock, unpaid payables, and uncollected receivables.",
     href: "/reports/sellers",
   },
   {
@@ -64,8 +71,26 @@ const reportOptions = [
   {
     id: "seller-settlements",
     name: "Partner Payments",
-    description: "Partner settlement history and payment postings.",
+    description: "Partner payout history with exact received-stock lines paid.",
     href: "/sellers/settlements",
+  },
+  {
+    id: "seller-collections",
+    name: "Partner Collections",
+    description: "Cash and bank collections posted for sold assigned items.",
+    href: "/sellers/collections",
+  },
+  {
+    id: "seller-returns",
+    name: "Partner Returns",
+    description: "Unsold items returned either back to the partner or into branch stock.",
+    href: "/sellers/returns",
+  },
+  {
+    id: "seller-intakes",
+    name: "Partner Received Records",
+    description: "Received partner stock with sold, returned, and remaining quantities.",
+    href: "/sellers/intake-records",
   },
 ] as const;
 

@@ -53,6 +53,7 @@ enum LedgerEntryType {
   CUSTOMER_PAYMENT
   SUPPLIER_PAYMENT
   SELLER_SETTLEMENT
+  SELLER_COLLECTION
   EXPENSE
   CASH_TRANSFER
   OPENING_BALANCE
@@ -119,6 +120,7 @@ model User {
   createdAssignments       SellerAssignment[]   @relation("SellerAssignmentRecordedBy")
   createdReturns           SellerReturn[]       @relation("SellerReturnRecordedBy")
   createdSettlements       SellerSettlement[]   @relation("SellerSettlementRecordedBy")
+  createdCollections       SellerCollection[]   @relation("SellerCollectionRecordedBy")
   createdExpenses          Expense[]            @relation("ExpenseRecordedBy")
   recordedCustomerPayments CustomerPayment[]    @relation("CustomerPaymentRecordedBy")
   recordedSupplierPayments SupplierPayment[]    @relation("SupplierPaymentRecordedBy")
@@ -211,6 +213,7 @@ model Branch {
   sellerAssignments SellerAssignment[]
   sellerReturns     SellerReturn[]
   sellerSettlements SellerSettlement[]
+  sellerCollections SellerCollection[]
   financeAccounts   FinanceAccount[]
   expenses          Expense[]
   customerPayments  CustomerPayment[]
@@ -328,7 +331,7 @@ model Customer {
 model Seller {
   id             String               @id @default(cuid())
   fullName       String
-  phone          String               @unique
+  phone          String?              @unique
   alternatePhone String?
   address        String?
   note           String?
@@ -337,6 +340,7 @@ model Seller {
   assignments    SellerAssignment[]
   returns        SellerReturn[]
   settlements    SellerSettlement[]
+  collections    SellerCollection[]
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
@@ -349,7 +353,7 @@ model Purchase {
   purchaseNumber   String          @unique
   invoiceNumber    String?
   branchId         String
-  supplierId       String
+  supplierId       String?
   createdById      String
   paymentAccountId String?
   status           PurchaseStatus  @default(POSTED)
@@ -363,7 +367,7 @@ model Purchase {
   purchasedAt      DateTime
   note             String?
   branch           Branch          @relation(fields: [branchId], references: [id])
-  supplier         Supplier        @relation(fields: [supplierId], references: [id])
+  supplier         Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdBy        User            @relation("PurchaseCreatedBy", fields: [createdById], references: [id])
   paymentAccount   FinanceAccount? @relation("PurchasePaymentAccount", fields: [paymentAccountId], references: [id])
   items            PurchaseItem[]
@@ -459,6 +463,7 @@ model SaleItemAllocation {
   sellerIntakeItem       SellerIntakeItem?      @relation(fields: [sellerIntakeItemId], references: [id])
   sellerAssignmentItem   SellerAssignmentItem?  @relation(fields: [sellerAssignmentItemId], references: [id])
   settlementAllocations  SellerSettlementAllocation[]
+  collectionAllocations  SellerCollectionAllocation[]
   createdAt              DateTime               @default(now())
 
   @@map("sale_item_allocations")
@@ -626,6 +631,42 @@ model SellerSettlementAllocation {
   @@map("seller_settlement_allocations")
 }
 
+model SellerCollection {
+  id               String                     @id @default(cuid())
+  collectionNumber String                     @unique
+  sellerId         String
+  branchId         String
+  createdById      String
+  financeAccountId String?
+  collectionDate   DateTime
+  paymentMethod    AccountType
+  status           SettlementStatus           @default(POSTED)
+  amount           Decimal                    @db.Decimal(18, 2)
+  note             String?
+  seller           Seller                     @relation(fields: [sellerId], references: [id])
+  branch           Branch                     @relation(fields: [branchId], references: [id])
+  createdBy        User                       @relation("SellerCollectionRecordedBy", fields: [createdById], references: [id])
+  financeAccount   FinanceAccount?            @relation("SellerCollectionFinanceAccount", fields: [financeAccountId], references: [id])
+  allocations      SellerCollectionAllocation[]
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@index([sellerId, collectionDate])
+  @@map("seller_collections")
+}
+
+model SellerCollectionAllocation {
+  id                   String             @id @default(cuid())
+  sellerCollectionId   String
+  saleItemAllocationId String
+  amount               Decimal            @db.Decimal(18, 2)
+  sellerCollection     SellerCollection   @relation(fields: [sellerCollectionId], references: [id], onDelete: Cascade)
+  saleItemAllocation   SaleItemAllocation @relation(fields: [saleItemAllocationId], references: [id])
+  createdAt            DateTime           @default(now())
+
+  @@map("seller_collection_allocations")
+}
+
 model FinanceAccount {
   id                String             @id @default(cuid())
   branchId          String?
@@ -639,6 +680,7 @@ model FinanceAccount {
   ledgerEntries     LedgerEntry[]
   purchases         Purchase[]         @relation("PurchasePaymentAccount")
   sellerSettlements SellerSettlement[] @relation("SellerSettlementFinanceAccount")
+  sellerCollections SellerCollection[] @relation("SellerCollectionFinanceAccount")
   expenses          Expense[]          @relation("ExpenseFinanceAccount")
   customerPayments  CustomerPayment[]
   supplierPayments  SupplierPayment[]

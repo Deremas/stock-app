@@ -108,8 +108,8 @@ export function ProfileSettingsForm({ user }: ProfileSettingsFormProps) {
         <CardContent className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="profile-username">Username</Label>
-              <Input id="profile-username" value={user.username} readOnly />
+              <Label htmlFor="profile-login-id">Login ID</Label>
+              <Input id="profile-login-id" value={user.username} readOnly />
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-role">Role</Label>

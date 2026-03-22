@@ -18,44 +18,79 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const password = await argon2.hash("1234");
 
-  const admin = await prisma.user.upsert({
-    where: { username: "admin" },
-    update: {
-      name: "Admin",
-      email: "admin@gmial.com",
-      role: AppRole.ADMIN,
-      isActive: true,
-      defaultBranchId: null,
-      displayName: "Admin",
-    },
-    create: {
-      name: "Admin",
-      displayName: "Admin",
-      username: "admin",
-      email: "admin@gmial.com",
-      role: AppRole.ADMIN,
-      isActive: true,
-      defaultBranchId: null,
-    },
+  async function upsertCredentialUser(input: {
+    name: string;
+    username: string;
+    email: string;
+    phone: string;
+    role: AppRole;
+  }) {
+    const user = await prisma.user.upsert({
+      where: {
+        username: input.username,
+      },
+      update: {
+        name: input.name,
+        displayName: input.name,
+        username: input.username,
+        displayUsername: input.username,
+        email: input.email,
+        phone: input.phone,
+        role: input.role,
+        isActive: true,
+        defaultBranchId: null,
+      },
+      create: {
+        name: input.name,
+        displayName: input.name,
+        username: input.username,
+        displayUsername: input.username,
+        email: input.email,
+        phone: input.phone,
+        role: input.role,
+        isActive: true,
+        defaultBranchId: null,
+      },
+    });
+
+    await prisma.account.upsert({
+      where: {
+        id: `${user.id}-credentials`,
+      },
+      update: {
+        providerId: "credential",
+        accountId: user.id,
+        password,
+      },
+      create: {
+        id: `${user.id}-credentials`,
+        providerId: "credential",
+        accountId: user.id,
+        userId: user.id,
+        password,
+      },
+    });
+  }
+
+  await upsertCredentialUser({
+    name: "Admin",
+    username: "admin",
+    email: "admin@gmail.com",
+    phone: "0923456789",
+    role: AppRole.ADMIN,
   });
 
-  await prisma.account.upsert({
-    where: { id: `${admin.id}-credentials` },
-    update: {
-      providerId: "credential",
-      accountId: admin.id,
-      password,
-    },
-    create: {
-      id: `${admin.id}-credentials`,
-      providerId: "credential",
-      accountId: admin.id,
-      userId: admin.id,
-      password,
-    },
+  await upsertCredentialUser({
+    name: "Sales",
+    username: "sales",
+    email: "sales@gmail.com",
+    phone: "0912345678",
+    role: AppRole.SALES,
   });
 
-  console.log("Bootstrap seed complete. Admin login: admin@gmial.com / 1234.");
+  console.log("Bootstrap seed complete.");
+  console.log("Admin login: admin / admin@gmail.com / 0923456789 / 1234");
+  console.log("Sales login: sales / sales@gmail.com / 0912345678 / 1234");
 }
 
 main()

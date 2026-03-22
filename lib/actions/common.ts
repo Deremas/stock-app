@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth/session";
 import type { CurrentUser } from "@/lib/types";
-import type { AppRole } from "@/lib/rbac";
+import { hasPermission, type AppPermission, type AppRole } from "@/lib/rbac";
 
 export {
   createDocumentNumber,
@@ -21,6 +21,18 @@ export async function getActionActor(
   const user = await getCurrentUser();
 
   if (!user || !allowedRoles.includes(user.role)) {
+    return null;
+  }
+
+  return user;
+}
+
+export async function getActionActorByPermission(
+  requiredPermission: AppPermission,
+): Promise<CurrentUser | null> {
+  const user = await getCurrentUser();
+
+  if (!user || !hasPermission(user.role, requiredPermission)) {
     return null;
   }
 

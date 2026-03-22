@@ -1,11 +1,15 @@
 import type { RowActionConfig, SimpleRow } from "@/lib/table";
 
+import { UserDeleteDialog } from "@/components/admin/user-delete-dialog";
+import { UserStatusDialog } from "@/components/admin/user-status-dialog";
 import { UserForm } from "@/components/forms/user-form";
 import { ModalTablePage } from "@/components/tables/modal-table-page";
 import { getUserFormOptions } from "@/lib/form-options";
 import { getTablePageConfig } from "@/lib/page-data";
 import { prisma } from "@/lib/prisma";
 import { getSingleSearchParam, type RouteSearchParams } from "@/lib/query-params";
+import { getUserDisplayUsername } from "@/lib/user-login";
+import { isArchivedUsername } from "@/lib/user-archive";
 
 type UsersPageProps = {
   searchParams?: Promise<RouteSearchParams>;
@@ -21,14 +25,47 @@ function createEditUserHref(userId: string) {
   return `/admin/users?${params.toString()}`;
 }
 
+function createStatusUserHref(userId: string, nextState: "active" | "inactive") {
+  const params = new URLSearchParams({
+    statusUserId: userId,
+    status: nextState,
+  });
+
+  return `/admin/users?${params.toString()}`;
+}
+
+function createDeleteUserHref(userId: string) {
+  const params = new URLSearchParams({
+    deleteUserId: userId,
+    delete: "1",
+  });
+
+  return `/admin/users?${params.toString()}`;
+}
+
+function normalizeManagedUser<T extends { username: string }>(user: T | null) {
+  if (!user || isArchivedUsername(user.username)) {
+    return null;
+  }
+
+  return user;
+}
+
 export default async function Page({ searchParams }: UsersPageProps) {
   const params = await searchParams;
+  const statusIntent = getSingleSearchParam(params, "status");
+  const statusUserId = getSingleSearchParam(params, "statusUserId");
+  const deleteUserId = getSingleSearchParam(params, "deleteUserId");
+  const initialStatusOpen =
+    Boolean(statusUserId) && (statusIntent === "active" || statusIntent === "inactive");
+  const initialDeleteOpen = getSingleSearchParam(params, "delete") === "1";
   const initialOpen = getSingleSearchParam(params, "open") === "1";
   const userId = getSingleSearchParam(params, "userId");
   const isEdit = getSingleSearchParam(params, "mode") === "edit" && Boolean(userId);
+  const dialogOpen = initialOpen && !initialStatusOpen && !initialDeleteOpen;
 
   const config = await getTablePageConfig("adminUsers");
-  const [options, selectedUser] = await Promise.all([
+  const [options, selectedUser, statusUser, deleteUser] = await Promise.all([
     getUserFormOptions(),
     isEdit && userId
       ? prisma.user.findUnique({
@@ -40,6 +77,7 @@ export default async function Page({ searchParams }: UsersPageProps) {
             name: true,
             email: true,
             username: true,
+            displayUsername: true,
             phone: true,
             role: true,
             defaultBranchId: true,
@@ -54,7 +92,38 @@ export default async function Page({ searchParams }: UsersPageProps) {
           },
         })
       : null,
+    initialStatusOpen && statusUserId
+      ? prisma.user.findUnique({
+          where: {
+            id: statusUserId,
+          },
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            username: true,
+            isActive: true,
+          },
+        })
+      : null,
+    initialDeleteOpen && deleteUserId
+      ? prisma.user.findUnique({
+          where: {
+            id: deleteUserId,
+          },
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            username: true,
+          },
+        })
+      : null,
   ]);
+
+  const resolvedSelectedUser = normalizeManagedUser(selectedUser);
+  const resolvedStatusUser = normalizeManagedUser(statusUser);
+  const resolvedDeleteUser = normalizeManagedUser(deleteUser);
 
   const configWithActions = {
     ...config,
@@ -70,44 +139,86 @@ export default async function Page({ searchParams }: UsersPageProps) {
               href: createEditUserHref(row.id),
               icon: "settings",
             },
+            {
+              key: row.status === "ACTIVE" ? "deactivate" : "activate",
+              label: row.status === "ACTIVE" ? "Deactivate" : "Activate",
+              href: createStatusUserHref(
+                row.id,
+                row.status === "ACTIVE" ? "inactive" : "active",
+              ),
+              icon: row.status === "ACTIVE" ? "userX" : "userCheck",
+              ...(row.status === "ACTIVE" ? { variant: "secondary" as const } : {}),
+            },
+            {
+              key: "delete",
+              label: "Delete",
+              href: createDeleteUserHref(row.id),
+              icon: "trash",
+              variant: "destructive" as const,
+            },
           ],
         }) satisfies SimpleRow,
     ),
   };
 
   return (
-    <ModalTablePage
-      config={configWithActions}
-      actionLabel="New user"
-      dialogTitle={selectedUser ? "Edit user" : "New user"}
-      dialogDescription={
-        selectedUser
-          ? "Update user details, assigned branches, and default branch."
-          : "Create a user account with role, assigned branches, and login credentials."
-      }
-      initialOpen={initialOpen}
-    >
-      <UserForm
-        options={options}
-        intent={selectedUser ? "edit" : "create"}
-        {...(selectedUser
-          ? {
-              initialValues: {
-                id: selectedUser.id,
-                name: selectedUser.name,
-                email: selectedUser.email ?? "",
-                username: selectedUser.username,
-                phone: selectedUser.phone ?? "",
-                password: "",
-                role: selectedUser.role,
-                branchIds: selectedUser.branchAssignments.map(
-                  (assignment) => assignment.branchId,
-                ),
-                defaultBranchId: selectedUser.defaultBranchId ?? "",
-              },
-            }
-          : {})}
+    <>
+      <ModalTablePage
+        config={configWithActions}
+        actionLabel="New user"
+        dialogTitle={resolvedSelectedUser ? "Edit user" : "New user"}
+        dialogDescription={
+          resolvedSelectedUser
+            ? "Update user details, assigned branches, and default branch."
+            : "Create a user account with role, assigned branches, password, and at least one login ID."
+        }
+        initialOpen={dialogOpen}
+      >
+        <UserForm
+          options={options}
+          intent={resolvedSelectedUser ? "edit" : "create"}
+          {...(resolvedSelectedUser
+            ? {
+                initialValues: {
+                  id: resolvedSelectedUser.id,
+                  name: resolvedSelectedUser.name,
+                  email: resolvedSelectedUser.email ?? "",
+                  username: getUserDisplayUsername(resolvedSelectedUser),
+                  phone: resolvedSelectedUser.phone ?? "",
+                  password: "",
+                  role: resolvedSelectedUser.role,
+                  branchIds: resolvedSelectedUser.branchAssignments.map(
+                    (assignment) => assignment.branchId,
+                  ),
+                  defaultBranchId: resolvedSelectedUser.defaultBranchId ?? "",
+                },
+              }
+            : {})}
+        />
+      </ModalTablePage>
+      <UserStatusDialog
+        user={
+          resolvedStatusUser
+            ? {
+                id: resolvedStatusUser.id,
+                name: resolvedStatusUser.displayName ?? resolvedStatusUser.name,
+                isActive: resolvedStatusUser.isActive,
+              }
+            : null
+        }
+        open={initialStatusOpen}
       />
-    </ModalTablePage>
+      <UserDeleteDialog
+        user={
+          resolvedDeleteUser
+            ? {
+                id: resolvedDeleteUser.id,
+                name: resolvedDeleteUser.displayName ?? resolvedDeleteUser.name,
+              }
+            : null
+        }
+        open={initialDeleteOpen}
+      />
+    </>
   );
 }

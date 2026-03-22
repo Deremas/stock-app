@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement>;
+type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & {
+  triggerLabel?: React.ReactNode;
+};
 
 type SelectOption = {
   key: string;
@@ -99,6 +101,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       id,
       onBlur,
       onChange,
+      triggerLabel,
       value,
       ...props
     },
@@ -122,7 +125,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     }, [controlledValue, defaultValue, options]);
     const [currentValue, setCurrentValue] = React.useState(initialValue);
     const selectedOption = options.find((option) => option.value === currentValue);
-    const isPlaceholder = currentValue === "";
+    const hasCustomTriggerLabel = triggerLabel !== undefined;
+    const isPlaceholder = currentValue === "" && !hasCustomTriggerLabel;
 
     const setRefs = React.useCallback(
       (node: HTMLSelectElement | null) => {
@@ -229,11 +233,17 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             >
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate text-left",
+                  "min-w-0 flex-1 text-left",
                   isPlaceholder ? "text-muted-foreground" : "text-foreground",
                 )}
               >
-                {selectedOption?.label ?? "Select an option"}
+                {hasCustomTriggerLabel ? (
+                  triggerLabel
+                ) : (
+                  <span className="block truncate">
+                    {selectedOption?.label ?? "Select an option"}
+                  </span>
+                )}
               </span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>

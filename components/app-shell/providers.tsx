@@ -1,14 +1,41 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import CssBaseline from "@mui/material/CssBaseline";
 import { alpha, createTheme, ThemeProvider as MuiThemeProvider } from "@mui/material/styles";
-import { ThemeProvider as NextThemeProvider, useTheme } from "next-themes";
 import { Toaster } from "sonner";
 
+type AppTheme = "light" | "dark";
+
+type AppThemeContextValue = {
+  resolvedTheme: AppTheme;
+  setTheme: (theme: AppTheme) => void;
+};
+
+const THEME_STORAGE_KEY = "stock-app-theme";
+const AppThemeContext = createContext<AppThemeContextValue | null>(null);
+
+function applyTheme(theme: AppTheme) {
+  const root = document.documentElement;
+
+  root.classList.toggle("dark", theme === "dark");
+  root.classList.toggle("light", theme === "light");
+  root.style.colorScheme = theme;
+}
+
+export function useAppTheme() {
+  const value = useContext(AppThemeContext);
+
+  if (!value) {
+    throw new Error("useAppTheme must be used within Providers.");
+  }
+
+  return value;
+}
+
 function MuiThemeBridge({ children }: { children: ReactNode }) {
-  const { resolvedTheme } = useTheme();
+  const { resolvedTheme } = useAppTheme();
   const [mounted, setMounted] = useState(false);
   const effectiveTheme = mounted ? resolvedTheme : "light";
   const isDark = effectiveTheme === "dark";
@@ -149,14 +176,31 @@ function MuiThemeBridge({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<AppTheme>("light");
+
+  useEffect(() => {
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const nextTheme = storedTheme === "dark" ? "dark" : "light";
+
+    setThemeState(nextTheme);
+    applyTheme(nextTheme);
+  }, []);
+
+  const value = useMemo<AppThemeContextValue>(
+    () => ({
+      resolvedTheme: theme,
+      setTheme: (nextTheme) => {
+        setThemeState(nextTheme);
+        window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+        applyTheme(nextTheme);
+      },
+    }),
+    [theme],
+  );
+
   return (
-    <NextThemeProvider
-      attribute="class"
-      defaultTheme="light"
-      enableSystem={false}
-      disableTransitionOnChange
-    >
+    <AppThemeContext.Provider value={value}>
       <MuiThemeBridge>{children}</MuiThemeBridge>
-    </NextThemeProvider>
+    </AppThemeContext.Provider>
   );
 }

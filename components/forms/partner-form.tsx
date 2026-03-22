@@ -102,8 +102,15 @@ export function PartnerForm({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="partner-phone">Phone</Label>
-          <Input id="partner-phone" placeholder="+251..." {...form.register("phone")} />
+          <Label htmlFor="partner-phone">Phone (optional)</Label>
+          <Input
+            id="partner-phone"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="+251..."
+            {...form.register("phone")}
+          />
         </div>
       </div>
       <div className="space-y-2">

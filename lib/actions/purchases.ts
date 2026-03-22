@@ -14,13 +14,14 @@ import {
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import {
   createAuditLog,
   createStockSnapshot,
@@ -34,7 +35,7 @@ import {
 export async function createPurchaseAction(
   input: PurchaseFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("purchases:create");
 
   if (!actor) {
     return {
@@ -63,7 +64,15 @@ export async function createPurchaseAction(
   }
 
   const paymentAccountId = normalizeOptionalString(parsed.data.paymentAccountId);
+  const supplierId = normalizeOptionalString(parsed.data.supplierId);
   const note = normalizeOptionalString(parsed.data.note);
+
+  if (parsed.data.settlementMode !== "UNPAID" && !hasPermission(actor.role, "accounts:use")) {
+    return {
+      success: false,
+      message: "You are not allowed to use payment accounts for purchases.",
+    };
+  }
 
   try {
     const purchaseReference = await prisma.$transaction(async (tx) => {
@@ -85,13 +94,21 @@ export async function createPurchaseAction(
         throw new Error("You do not have access to the selected branch.");
       }
 
-      const supplier = await tx.supplier.findUnique({
-        where: { id: parsed.data.supplierId },
-        select: { id: true, name: true },
-      });
+      const supplier = supplierId
+        ? await tx.supplier.findUnique({
+            where: { id: supplierId },
+            select: { id: true, name: true },
+          })
+        : null;
 
-      if (!supplier) {
+      if (supplierId && !supplier) {
         throw new Error("Selected supplier was not found.");
+      }
+
+      if (!supplier && parsed.data.settlementMode !== "FULL") {
+        throw new Error(
+          "Choose a supplier for unpaid or partial purchases so the balance can be settled later.",
+        );
       }
 
       const paymentAccount = paymentAccountId
@@ -155,7 +172,7 @@ export async function createPurchaseAction(
         data: {
           purchaseNumber,
           branchId: branch.id,
-          supplierId: supplier.id,
+          ...(supplier ? { supplierId: supplier.id } : {}),
           createdById: actor.id,
           ...(amountPaid > 0 && paymentAccountId ? { paymentAccountId } : {}),
           status: PurchaseStatus.POSTED,
@@ -209,8 +226,8 @@ export async function createPurchaseAction(
             sourceType: "Purchase",
             sourceId: purchase.id,
             sourceLineId: purchaseItem.id,
-            counterpartyType: "Supplier",
-            counterpartyId: supplier.id,
+            counterpartyType: supplier ? "Supplier" : "DirectPurchase",
+            ...(supplier ? { counterpartyId: supplier.id } : {}),
           },
         });
 
@@ -230,7 +247,7 @@ export async function createPurchaseAction(
         });
       }
 
-      if (amountPaid > 0 && paymentAccountId && paymentAccount) {
+      if (amountPaid > 0 && paymentAccountId && paymentAccount && supplier) {
         const supplierPayment = await tx.supplierPayment.create({
           data: {
             paymentNumber: createDocumentNumber("SPM", purchasedAt),
@@ -273,7 +290,7 @@ export async function createPurchaseAction(
         after: {
           purchaseNumber: purchase.purchaseNumber,
           branchId: branch.id,
-          supplierId: supplier.id,
+          supplierId: supplier?.id ?? null,
           total: subtotal,
           paymentStatus,
           amountPaid,
@@ -289,6 +306,9 @@ export async function createPurchaseAction(
     revalidatePath("/purchases/new");
     revalidatePath("/purchases/suppliers");
     revalidatePath("/purchases/supplier-payments");
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
+    revalidatePath("/finance/ledger");
     revalidatePath("/inventory/stock-overview");
     revalidatePath("/inventory/low-stock");
     revalidatePath("/inventory/out-of-stock");

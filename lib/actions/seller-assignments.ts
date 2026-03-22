@@ -8,7 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
@@ -132,7 +132,7 @@ async function getSellerAssignmentSourceBatch(args: {
       unitCost: Number(purchaseBatch.unitCost),
       currentSellingPrice: Number(purchaseBatch.sellingPrice),
       referenceNumber: purchaseBatch.purchase.purchaseNumber,
-      sourceName: purchaseBatch.purchase.supplier.name,
+      sourceName: purchaseBatch.purchase.supplier?.name ?? "No supplier",
     };
   }
 
@@ -162,7 +162,7 @@ async function getSellerAssignmentSourceBatch(args: {
 export async function createSellerAssignmentAction(
   input: SellerAssignmentFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("sellers:manage");
 
   if (!actor) {
     return {
@@ -382,8 +382,14 @@ export async function createSellerAssignmentAction(
     });
 
     revalidatePath("/sellers/assign-items");
+    revalidatePath("/sellers/list");
     revalidatePath("/sellers/assigned-items");
+    revalidatePath("/reports/sellers");
     revalidatePath("/inventory/stock-overview");
+    revalidatePath("/inventory/stock-movements");
+    revalidatePath("/inventory/low-stock");
+    revalidatePath("/inventory/out-of-stock");
+    revalidatePath("/inventory/alert-records");
     revalidatePath("/sales/new");
     revalidatePath("/dashboard");
 

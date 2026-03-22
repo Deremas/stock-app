@@ -38,66 +38,86 @@ export function AppHeader({
   const pageTitle = getNavigationTitle(pathname);
   const activeBranch =
     user.branches.find((branch) => branch.id === user.activeBranchId) ?? user.branches[0];
+  const activeBranchLabel = activeBranch
+    ? activeBranch.code
+      ? `${activeBranch.code} - ${activeBranch.name}`
+      : activeBranch.name
+    : "";
 
   useEffect(() => {
     setSelectedBranchId(user.activeBranchId);
   }, [user.activeBranchId]);
 
-  const branchStatus = activeBranch ? (
-    <div className="flex w-full min-w-0 max-w-full items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2 shadow-sm sm:w-auto sm:max-w-[24rem]">
-      <Building2 className="h-4 w-4 text-primary" />
-      <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-          Active Branch
-        </p>
-        <Select
-          aria-label="Switch active branch"
-          className="h-auto w-full min-w-0 border-0 bg-transparent px-0 py-0 text-sm font-medium shadow-none focus-visible:ring-0 sm:min-w-[14rem]"
-          disabled={isBranchPending || user.branches.length <= 1}
-          value={selectedBranchId}
-          onChange={(event) => {
-            const nextBranchId = event.target.value;
+  const branchControl = activeBranch ? (
+    <div className="min-w-0 max-w-[8.75rem] sm:max-w-[20rem]">
+      <Select
+        aria-label="Switch active branch"
+        className="h-10 w-full min-w-0 rounded-full border-border/70 bg-card px-3 text-sm font-medium shadow-sm sm:h-auto sm:rounded-xl sm:py-2"
+        disabled={isBranchPending || user.branches.length <= 1}
+        triggerLabel={
+          <>
+            <span className="block truncate text-sm font-medium sm:hidden">{activeBranch.name}</span>
+            <span className="hidden min-w-0 items-center gap-2 sm:flex">
+              <Building2 className="h-4 w-4 shrink-0 text-primary" />
+              <span className="min-w-0">
+                <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Active Branch
+                </span>
+                <span className="block truncate text-sm font-medium text-foreground">
+                  {activeBranchLabel}
+                </span>
+              </span>
+            </span>
+          </>
+        }
+        value={selectedBranchId}
+        onChange={(event) => {
+          const nextBranchId = event.target.value;
 
-            if (!nextBranchId || nextBranchId === user.activeBranchId) {
+          if (!nextBranchId || nextBranchId === user.activeBranchId) {
+            setSelectedBranchId(user.activeBranchId);
+            return;
+          }
+
+          setSelectedBranchId(nextBranchId);
+          startBranchTransition(async () => {
+            const result = await setActiveBranchAction({
+              branchId: nextBranchId,
+            });
+
+            if (!result.success) {
               setSelectedBranchId(user.activeBranchId);
+              toast.error(result.message);
               return;
             }
 
-            setSelectedBranchId(nextBranchId);
-            startBranchTransition(async () => {
-              const result = await setActiveBranchAction({
-                branchId: nextBranchId,
-              });
-
-              if (!result.success) {
-                setSelectedBranchId(user.activeBranchId);
-                toast.error(result.message);
-                return;
-              }
-
-              toast.success(result.message);
-              router.refresh();
-            });
-          }}
-        >
-          {user.branches.map((branch) => (
-            <option key={branch.id} value={branch.id}>
-              {branch.code} - {branch.name}
-            </option>
-          ))}
-        </Select>
-      </div>
+            toast.success(result.message);
+            router.refresh();
+          });
+        }}
+      >
+        {user.branches.map((branch) => (
+          <option key={branch.id} value={branch.id}>
+            {branch.code} - {branch.name}
+          </option>
+        ))}
+      </Select>
     </div>
   ) : user.role === "ADMIN" ? (
     pathname === "/admin/branches" ? null : (
-      <Button asChild size="sm" variant="outline">
+      <Button
+        asChild
+        size="sm"
+        variant="outline"
+        className="h-10 rounded-full border-border/70 bg-card px-3 shadow-sm"
+      >
         <Link href="/admin/branches" prefetch={false}>
           Create first branch
         </Link>
       </Button>
     )
   ) : (
-    <div className="rounded-xl border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+    <div className="rounded-full border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
       No branch created yet
     </div>
   );
@@ -116,7 +136,7 @@ export function AppHeader({
 
   return (
     <header className="sticky top-0 z-30 max-w-full shrink-0 overflow-x-clip border-b border-border/70 bg-background/94 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur supports-[backdrop-filter]:bg-background/86 dark:shadow-[0_16px_36px_rgba(2,8,23,0.42)]">
-      <div className="mx-auto flex w-full min-w-0 max-w-[1360px] flex-col gap-3">
+      <div className="mx-auto w-full min-w-0 max-w-[1360px]">
         <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <Button
@@ -135,6 +155,7 @@ export function AppHeader({
             </h1>
           </div>
           <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
+            {branchControl}
             <ThemeToggle />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -154,9 +175,7 @@ export function AppHeader({
                 <DropdownMenuLabel>
                   <div className="space-y-1">
                     <p className="text-sm font-medium">{user.name}</p>
-                    <p className="text-xs font-normal text-muted-foreground">
-                      @{user.username}
-                    </p>
+                    <p className="text-xs font-normal text-muted-foreground">{user.username}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -173,11 +192,6 @@ export function AppHeader({
             </DropdownMenu>
           </div>
         </div>
-        {branchStatus ? (
-          <div className="flex min-w-0 max-w-full items-center overflow-hidden">
-            {branchStatus}
-          </div>
-        ) : null}
       </div>
     </header>
   );

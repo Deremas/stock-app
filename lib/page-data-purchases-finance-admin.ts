@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { RowActionConfig, SimpleRow } from "@/lib/table";
 import type { BranchRow, MetricCard } from "@/lib/types";
+import { getUserLoginLabel } from "@/lib/user-login";
+import { ARCHIVED_USER_USERNAME_PREFIX } from "@/lib/user-archive";
 import { sumRows, toNumber } from "@/lib/data-runtime-utils";
 import { startOfDay, startOfMonth, startOfWeek } from "date-fns";
 
@@ -96,7 +99,7 @@ export async function getPurchaseRows(filters: PurchaseFilters = {}) {
         id: purchase.id,
         purchaseNumber: purchase.purchaseNumber,
         branch: purchase.branch.name,
-        supplier: purchase.supplier.name,
+        supplier: purchase.supplier?.name ?? "No supplier",
         total: toNumber(purchase.total),
         amountDue: toNumber(purchase.amountDue),
         paymentStatus: purchase.paymentStatus,
@@ -213,6 +216,9 @@ export async function getSupplierPaymentRows(filters: PurchaseFilters = {}) {
       financeAccount: {
         select: {
           name: true,
+          type: true,
+          bankName: true,
+          accountNumber: true,
         },
       },
     },
@@ -225,7 +231,7 @@ export async function getSupplierPaymentRows(filters: PurchaseFilters = {}) {
         paymentNumber: row.paymentNumber,
         supplier: row.supplier.name,
         branch: row.branch.name,
-        account: row.financeAccount.name,
+        account: formatFinanceAccountLabel(row.financeAccount),
         amount: toNumber(row.amount),
         appliedTo: row.purchase?.purchaseNumber ?? "-",
         paidAt: row.paymentDate.toISOString(),
@@ -337,6 +343,9 @@ export async function getCashTransferRows(branchId?: string) {
       financeAccount: {
         select: {
           name: true,
+          type: true,
+          bankName: true,
+          accountNumber: true,
         },
       },
     },
@@ -369,9 +378,13 @@ export async function getCashTransferRows(branchId?: string) {
     };
 
     if (row.direction === "CREDIT") {
-      existing.fromAccount = row.financeAccount?.name ?? "-";
+      existing.fromAccount = row.financeAccount
+        ? formatFinanceAccountLabel(row.financeAccount)
+        : "-";
     } else {
-      existing.toAccount = row.financeAccount?.name ?? "-";
+      existing.toAccount = row.financeAccount
+        ? formatFinanceAccountLabel(row.financeAccount)
+        : "-";
     }
 
     if (row.entryDate.toISOString() > existing.transferDate) {
@@ -403,6 +416,9 @@ export async function getExpenseRows(branchId?: string) {
       financeAccount: {
         select: {
           name: true,
+          type: true,
+          bankName: true,
+          accountNumber: true,
         },
       },
       expenseCategory: {
@@ -421,7 +437,7 @@ export async function getExpenseRows(branchId?: string) {
         branch: row.branch.name,
         category: row.expenseCategory.name,
         name: row.name,
-        account: row.financeAccount.name,
+        account: formatFinanceAccountLabel(row.financeAccount),
         amount: toNumber(row.amount),
         expenseDate: row.expenseDate.toISOString(),
       }) satisfies SimpleRow,
@@ -596,6 +612,9 @@ export async function getLedgerRows(branchId?: string) {
       financeAccount: {
         select: {
           name: true,
+          type: true,
+          bankName: true,
+          accountNumber: true,
         },
       },
     },
@@ -607,7 +626,7 @@ export async function getLedgerRows(branchId?: string) {
         id: row.id,
         entryDate: row.entryDate.toISOString(),
         branch: row.branch?.name ?? "-",
-        account: row.financeAccount?.name ?? "-",
+        account: row.financeAccount ? formatFinanceAccountLabel(row.financeAccount) : "-",
         type: row.entryType,
         direction: row.direction,
         amount: toNumber(row.amount),
@@ -618,6 +637,13 @@ export async function getLedgerRows(branchId?: string) {
 
 export async function getUserRows() {
   const rows = await prisma.user.findMany({
+    where: {
+      NOT: {
+        username: {
+          startsWith: ARCHIVED_USER_USERNAME_PREFIX,
+        },
+      },
+    },
     orderBy: {
       name: "asc",
     },
@@ -625,7 +651,10 @@ export async function getUserRows() {
       id: true,
       name: true,
       displayName: true,
+      displayUsername: true,
       username: true,
+      email: true,
+      phone: true,
       role: true,
       isActive: true,
       defaultBranch: {
@@ -654,7 +683,7 @@ export async function getUserRows() {
       ({
         id: row.id,
         name: row.displayName ?? row.name,
-        username: row.username,
+        username: getUserLoginLabel(row),
         role: row.role,
         defaultBranch: row.defaultBranch?.name ?? "-",
         branches:
@@ -667,6 +696,13 @@ export async function getUserRows() {
 
 export async function getRoleRows() {
   const users = await prisma.user.findMany({
+    where: {
+      NOT: {
+        username: {
+          startsWith: ARCHIVED_USER_USERNAME_PREFIX,
+        },
+      },
+    },
     select: {
       role: true,
     },

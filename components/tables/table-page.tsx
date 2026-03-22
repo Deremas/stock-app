@@ -18,6 +18,7 @@ export function TablePage({ config }: { config: TablePageConfig }) {
   const tableProps = {
     columns: config.columns,
     data: config.rows,
+    exportTitle: config.title,
     ...(config.exportFileName ? { exportFileName: config.exportFileName } : {}),
   };
 

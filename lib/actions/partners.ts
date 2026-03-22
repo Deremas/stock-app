@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import {
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
 } from "@/lib/actions/common";
@@ -25,7 +25,7 @@ type CreatePartnerActionResult = {
 export async function createPartnerAction(
   input: PartnerCreateFormInput,
 ): Promise<CreatePartnerActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("sellers:manage");
 
   if (!actor) {
     return {
@@ -50,7 +50,7 @@ export async function createPartnerAction(
     const partner = await prisma.seller.create({
       data: {
         fullName: parsed.data.fullName,
-        phone: phone ?? parsed.data.phone.trim(),
+        ...(phone ? { phone } : {}),
         ...(location ? { address: location } : {}),
         ...(note ? { note } : {}),
       },

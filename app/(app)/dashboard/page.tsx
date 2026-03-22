@@ -8,37 +8,55 @@ import { TopProductsCard } from "@/components/dashboard/top-products-card";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getDashboardSnapshot } from "@/lib/page-data";
+import { hasPermission } from "@/lib/rbac";
 
 export default async function DashboardPage() {
-  const [dashboardSnapshot, currentUser] = await Promise.all([
-    getDashboardSnapshot(),
-    getCurrentUser(),
-  ]);
+  const currentUser = await getCurrentUser();
+  const role = currentUser?.role ?? "SALES";
+  const dashboardSnapshot = await getDashboardSnapshot(role);
+  const canViewReports = hasPermission(role, "reports:view");
+  const showSalesTrend = canViewReports;
 
   return (
     <div className="min-w-0 space-y-6">
       <PageHeader
         eyebrow="Dashboard"
         title="Operations Overview"
-        description="Branch-aware stock, sales, credit, and finance snapshots for today's trading activity."
+        description={
+          role === "ADMIN"
+            ? "Branch-aware stock, sales, credit, and finance snapshots for today's trading activity."
+            : "Today's sales, customer credit, and stock alerts for the active branch."
+        }
       />
-      <MetricGrid metrics={dashboardSnapshot.metrics} />
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <MetricGrid metrics={dashboardSnapshot.metrics} mobileColumns={2} />
+      <div
+        className={`grid min-w-0 gap-6${
+          canViewReports ? " xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" : ""
+        }`}
+      >
         <div className="min-w-0">
-          <QuickActionsCard role={currentUser?.role ?? "SALES"} />
+          <QuickActionsCard role={role} />
         </div>
-        <div className="min-w-0">
-          <ReportShowcaseCard />
-        </div>
+        {canViewReports ? (
+          <div className="min-w-0">
+            <ReportShowcaseCard />
+          </div>
+        ) : null}
       </div>
-      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
-        <div className="min-w-0">
-          <SalesTrendChart data={dashboardSnapshot.salesTrend} />
+      {showSalesTrend ? (
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
+            <SalesTrendChart data={dashboardSnapshot.salesTrend} />
+          </div>
+          <div className="min-w-0">
+            <RecentTransactionsCard transactions={dashboardSnapshot.recentTransactions} />
+          </div>
         </div>
+      ) : (
         <div className="min-w-0">
           <RecentTransactionsCard transactions={dashboardSnapshot.recentTransactions} />
         </div>
-      </div>
+      )}
       <div className="grid min-w-0 gap-6 xl:grid-cols-2">
         <div className="min-w-0">
           <TopProductsCard products={dashboardSnapshot.topProducts} />

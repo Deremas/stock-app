@@ -1,3 +1,6 @@
+import { endOfDay, parseISO } from "date-fns";
+
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import { prisma } from "@/lib/prisma";
 import type { RowActionConfig, SimpleRow } from "@/lib/table";
 import { toNumber, sumRows } from "@/lib/data-runtime-utils";
@@ -21,7 +24,7 @@ function getSoldAtRangeFilter(filters: Pick<SalesFilters, "dateFrom" | "dateTo">
   } = {};
 
   if (filters.dateFrom) {
-    const parsedDate = new Date(filters.dateFrom);
+    const parsedDate = parseISO(filters.dateFrom);
 
     if (!Number.isNaN(parsedDate.getTime())) {
       soldAt.gte = parsedDate;
@@ -29,11 +32,10 @@ function getSoldAtRangeFilter(filters: Pick<SalesFilters, "dateFrom" | "dateTo">
   }
 
   if (filters.dateTo) {
-    const parsedDate = new Date(filters.dateTo);
+    const parsedDate = parseISO(filters.dateTo);
 
     if (!Number.isNaN(parsedDate.getTime())) {
-      parsedDate.setHours(23, 59, 59, 999);
-      soldAt.lte = parsedDate;
+      soldAt.lte = endOfDay(parsedDate);
     }
   }
 
@@ -277,6 +279,7 @@ export async function getSalesProfitRows(filters: SalesFilters = {}) {
           },
           sellerAssignmentItem: {
             select: {
+              sellerIntakeItemId: true,
               sellerAssignment: {
                 select: {
                   seller: {
@@ -306,10 +309,14 @@ export async function getSalesProfitRows(filters: SalesFilters = {}) {
           .filter(Boolean),
       ),
     ];
+    const isPartnerOwnedAllocation = (allocation: (typeof saleItem.allocations)[number]) =>
+      allocation.sourceType === "SELLER_CONSIGNMENT" ||
+      (allocation.sourceType === "SELLER_ASSIGNED" &&
+        Boolean(allocation.sellerAssignmentItem?.sellerIntakeItemId));
     const partnerPayable = Number(
       saleItem.allocations
         .reduce((sum, allocation) => {
-          if (allocation.sourceType === "OWNED") {
+          if (!isPartnerOwnedAllocation(allocation)) {
             return sum;
           }
 
@@ -320,7 +327,7 @@ export async function getSalesProfitRows(filters: SalesFilters = {}) {
     const costTotal = Number(
       saleItem.allocations
         .reduce((sum, allocation) => {
-          if (allocation.sourceType === "OWNED") {
+          if (!isPartnerOwnedAllocation(allocation)) {
             return sum + toNumber(allocation.unitCost) * allocation.quantity;
           }
 
@@ -512,6 +519,9 @@ export async function getCustomerPaymentRows(
       financeAccount: {
         select: {
           name: true,
+          type: true,
+          bankName: true,
+          accountNumber: true,
         },
       },
     },
@@ -524,7 +534,7 @@ export async function getCustomerPaymentRows(
         receiptNumber: row.paymentNumber,
         customer: row.customer.name,
         branch: row.branch.name,
-        paymentMethod: row.financeAccount.name,
+        paymentMethod: formatFinanceAccountLabel(row.financeAccount),
         amount: toNumber(row.amount),
         appliedTo: row.sale?.saleNumber ?? "-",
         paidAt: row.paymentDate.toISOString(),

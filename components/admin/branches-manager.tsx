@@ -8,12 +8,16 @@ import {
   useMaterialReactTable,
   type MRT_ColumnDef,
 } from "material-react-table";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
-import { deleteBranchAction, createBranchAction } from "@/lib/actions/branches";
+import {
+  createBranchAction,
+  deleteBranchAction,
+  updateBranchAction,
+} from "@/lib/actions/branches";
 import {
   getSimpleColumnSizing,
   materialTableBodyCellSx,
@@ -27,7 +31,10 @@ import {
   materialTableToolbarSx,
 } from "@/lib/material-table";
 import type { BranchRow } from "@/lib/types";
-import { branchSchema, type BranchFormInput } from "@/lib/validation/branch";
+import {
+  branchSchema,
+  type BranchFormInput,
+} from "@/lib/validation/branch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +47,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TableExportMenu } from "@/components/tables/table-export-menu";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import {
   Dialog,
@@ -51,6 +59,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { SimpleColumn } from "@/lib/table";
 
 function getStatusVariant(value: BranchRow["status"]) {
   return value === "ACTIVE" ? "success" : "outline";
@@ -59,6 +68,7 @@ function getStatusVariant(value: BranchRow["status"]) {
 export function BranchesManager({ rows }: { rows: BranchRow[] }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
+  const [branchToEdit, setBranchToEdit] = useState<BranchRow | null>(null);
   const [branchToDelete, setBranchToDelete] = useState<BranchRow | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -100,6 +110,16 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
     ],
     [],
   );
+  const exportColumns = useMemo<SimpleColumn[]>(
+    () => [
+      { key: "code", header: "Code" },
+      { key: "name", header: "Branch" },
+      { key: "location", header: "Location" },
+      { key: "status", header: "Status", type: "status" },
+    ],
+    [],
+  );
+  const isEditMode = Boolean(branchToEdit);
 
   const table = useMaterialReactTable({
     columns,
@@ -155,7 +175,32 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
       placeholder: "Search branches",
     },
     muiPaginationProps: materialTablePaginationProps,
+    renderTopToolbarCustomActions: ({ table }) => (
+      <TableExportMenu
+        title="Branches"
+        fileName="branches"
+        columns={exportColumns}
+        rows={table.getPrePaginationRowModel().rows.map((row) => row.original)}
+      />
+    ),
     renderRowActionMenuItems: ({ row, closeMenu }) => [
+      <MenuItem
+        key="edit"
+        onClick={() => {
+          const branch = row.original;
+          setBranchToEdit(branch);
+          setCreateError(null);
+          form.reset({
+            name: branch.name,
+            location: branch.location === "-" ? "" : branch.location,
+          });
+          setCreateOpen(true);
+          closeMenu();
+        }}
+      >
+        <Pencil className="mr-2 h-4 w-4" />
+        Edit branch
+      </MenuItem>,
       <MenuItem
         key="delete"
         onClick={() => {
@@ -171,14 +216,20 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
 
   function resetFormState() {
     setCreateError(null);
+    setBranchToEdit(null);
     form.reset();
     setCreateOpen(false);
   }
 
-  function handleCreate(values: BranchFormInput) {
+  function handleSave(values: BranchFormInput) {
     startTransition(async () => {
       setCreateError(null);
-      const result = await createBranchAction(values);
+      const result = branchToEdit
+        ? await updateBranchAction({
+            id: branchToEdit.id,
+            ...values,
+          })
+        : await createBranchAction(values);
 
       if (!result.success) {
         setCreateError(result.message);
@@ -221,7 +272,19 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
             : "Manage shop branches here."}
         </p>
         <div className="justify-self-end">
-          <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setBranchToEdit(null);
+              setCreateError(null);
+              form.reset({
+                name: "",
+                location: "",
+              });
+              setCreateOpen(true);
+            }}
+          >
             <Plus className="h-4 w-4" />
             Create branch
           </Button>
@@ -234,14 +297,19 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
           setCreateOpen(open);
           if (!open) {
             setCreateError(null);
+            setBranchToEdit(null);
             form.reset();
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create branch</DialogTitle>
-            <DialogDescription>Add a new branch with only the basic details.</DialogDescription>
+            <DialogTitle>{isEditMode ? "Edit branch" : "Create branch"}</DialogTitle>
+            <DialogDescription>
+              {isEditMode
+                ? "Update the branch details. Code is regenerated from the full branch name."
+                : "Add a new branch with only the basic details. Code is generated from the full branch name."}
+            </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-5"
@@ -250,7 +318,7 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
                 setCreateError(null);
               }
             }}
-            onSubmit={form.handleSubmit(handleCreate)}
+            onSubmit={form.handleSubmit(handleSave)}
           >
             <FormFeedback
               errors={form.formState.errors}
@@ -278,7 +346,7 @@ export function BranchesManager({ rows }: { rows: BranchRow[] }) {
                 Cancel
               </Button>
               <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving..." : "Save branch"}
+                {isPending ? "Saving..." : isEditMode ? "Save changes" : "Save branch"}
               </Button>
             </DialogFooter>
           </form>

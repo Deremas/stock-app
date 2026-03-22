@@ -1,4 +1,8 @@
 import { getCurrentUser } from "@/lib/auth/session";
+import {
+  dedupeCashAccountsPerBranch,
+  toFinanceAccountOption,
+} from "@/lib/finance-account-utils";
 import { getOwnedStockBatches } from "@/lib/owned-stock-batches";
 import { prisma } from "@/lib/prisma";
 import { getStockSummaryRows } from "@/lib/stock-runtime-data";
@@ -17,7 +21,9 @@ import type {
   SaleBranchStockOption,
   SaleFormOptions,
   SellerAssignmentFormOptions,
+  SellerCollectionFormOptions,
   SellerIntakeFormOptions,
+  SellerReturnFormOptions,
   SellerSettlementFormOptions,
   SupplierPaymentFormOptions,
   TransferFormOptions,
@@ -28,27 +34,13 @@ function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
 
-function toFinanceAccountOption(account: {
-  id: string;
-  name: string;
-  type: "CASH" | "BANK";
-  branchId: string | null;
-  branch: { name: string } | null;
-}): FinanceAccountOption {
-  return {
-    id: account.id,
-    name: account.name,
-    type: account.type,
-    branchId: account.branchId,
-    branchName: account.branch?.name ?? null,
-  };
-}
-
 function toCashTransferAccountOption(account: {
   id: string;
   name: string;
   type: "CASH" | "BANK";
   branchId: string | null;
+  bankName: string | null;
+  accountNumber: string | null;
   branch: { name: string } | null;
   ledgerEntries: {
     amount: unknown;
@@ -68,6 +60,10 @@ function toCashTransferAccountOption(account: {
   };
 }
 
+function createSellerReturnLineId(prefix: "INTAKE" | "ASSIGNMENT", id: string) {
+  return `${prefix}:${id}`;
+}
+
 async function getCurrentBranchScope() {
   const user = await getCurrentUser();
 
@@ -79,9 +75,27 @@ async function getCurrentBranchScope() {
 
 export async function getFinanceAccountFormOptions(): Promise<FinanceAccountFormOptions> {
   const scope = await getCurrentBranchScope();
+  const branchIds = scope.branches.map((branch) => branch.id);
+  const cashAccounts = branchIds.length
+    ? await prisma.financeAccount.findMany({
+        where: {
+          isActive: true,
+          type: "CASH",
+          branchId: {
+            in: branchIds,
+          },
+        },
+        select: {
+          branchId: true,
+        },
+      })
+    : [];
 
   return {
     branches: scope.branches,
+    cashBranchIds: cashAccounts
+      .map((account) => account.branchId)
+      .filter((branchId): branchId is string => Boolean(branchId)),
   };
 }
 
@@ -277,7 +291,7 @@ async function getSaleBranchStockOptions(
 export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
   const scope = await getCurrentBranchScope();
   const branchIds = scope.branches.map((branch) => branch.id);
-  const [suppliers, products, accounts] = await Promise.all([
+  const [suppliers, products, rawAccounts] = await Promise.all([
     prisma.supplier.findMany({
       where: {
         isActive: true,
@@ -306,6 +320,8 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
         name: true,
         type: true,
         branchId: true,
+        bankName: true,
+        accountNumber: true,
         branch: {
           select: {
             name: true,
@@ -314,6 +330,7 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
       },
     }),
   ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
   return {
     branches: scope.branches,
@@ -327,7 +344,8 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
 
 export async function getSaleFormOptions(): Promise<SaleFormOptions> {
   const scope = await getCurrentBranchScope();
-  const [customers, products, ownedBatches, branchStock] = await Promise.all([
+  const branchIds = scope.branches.map((branch) => branch.id);
+  const [customers, products, ownedBatches, branchStock, rawAccounts] = await Promise.all([
     prisma.customer.findMany({
       where: {
         isActive: true,
@@ -342,12 +360,37 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
     }),
     getActiveProductOptions(),
     getOwnedStockBatches({
-      branchIds: scope.branches.map((branch) => branch.id),
+      branchIds,
     }),
-    getSaleBranchStockOptions(scope.branches.map((branch) => branch.id)),
+    getSaleBranchStockOptions(branchIds),
+    prisma.financeAccount.findMany({
+      where: {
+        isActive: true,
+        ...(branchIds.length > 0
+          ? {
+              OR: [{ branchId: null }, { branchId: { in: branchIds } }],
+            }
+          : { branchId: null }),
+      },
+      orderBy: [{ type: "asc" }, { branch: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        branchId: true,
+        bankName: true,
+        accountNumber: true,
+        branch: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
   ]);
 
   const inStockProductIds = new Set(branchStock.map((item) => item.productId));
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
   return {
     branches: scope.branches,
@@ -355,6 +398,7 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
     products: products.filter((product) => inStockProductIds.has(product.id)),
     branchStock,
     ownedBatches,
+    accounts: accounts.map((account) => toFinanceAccountOption(account)),
   };
 }
 
@@ -412,6 +456,183 @@ export async function getSellerAssignmentFormOptions(): Promise<SellerAssignment
   };
 }
 
+export async function getSellerReturnFormOptions(
+  sellerId?: string,
+): Promise<SellerReturnFormOptions> {
+  const scope = await getCurrentBranchScope();
+  const branchIds = scope.branches.map((branch) => branch.id);
+
+  if (branchIds.length === 0) {
+    return {
+      branches: scope.branches,
+      sellers: [],
+      lines: [],
+    };
+  }
+
+  const [intakeItems, assignmentItems] = await Promise.all([
+    prisma.sellerIntakeItem.findMany({
+      where: {
+        sellerIntake: {
+          branchId: {
+            in: branchIds,
+          },
+          ...(sellerId ? { sellerId } : {}),
+        },
+      },
+      orderBy: [{ bringingDate: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        productId: true,
+        quantityBrought: true,
+        quantityAssigned: true,
+        quantitySold: true,
+        quantityReturned: true,
+        bringingDate: true,
+        product: {
+          select: {
+            name: true,
+          },
+        },
+        sellerIntake: {
+          select: {
+            intakeNumber: true,
+            sellerId: true,
+            branchId: true,
+            branch: {
+              select: {
+                name: true,
+              },
+            },
+            seller: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.sellerAssignmentItem.findMany({
+      where: {
+        OR: [{ purchaseItemId: { not: null } }, { transferItemId: { not: null } }],
+        sellerAssignment: {
+          branchId: {
+            in: branchIds,
+          },
+          ...(sellerId ? { sellerId } : {}),
+        },
+      },
+      orderBy: [{ assignmentDate: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        productId: true,
+        quantityAssigned: true,
+        quantitySold: true,
+        quantityReturned: true,
+        assignmentDate: true,
+        product: {
+          select: {
+            name: true,
+          },
+        },
+        sellerAssignment: {
+          select: {
+            assignmentNumber: true,
+            sellerId: true,
+            branchId: true,
+            branch: {
+              select: {
+                name: true,
+              },
+            },
+            seller: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const intakeLines = intakeItems
+    .map((item) => {
+      const availableQty =
+        item.quantityBrought -
+        item.quantityAssigned -
+        item.quantitySold -
+        item.quantityReturned;
+
+      return {
+        id: createSellerReturnLineId("INTAKE", item.id),
+        sellerId: item.sellerIntake.sellerId,
+        sellerName: item.sellerIntake.seller.fullName,
+        branchId: item.sellerIntake.branchId,
+        branchName: item.sellerIntake.branch.name,
+        productId: item.productId,
+        productName: item.product.name,
+        sourceLabel: item.sellerIntake.intakeNumber,
+        sourceDate: item.bringingDate.toISOString(),
+        availableQty,
+        direction: "TO_PARTNER" as const,
+      };
+    })
+    .filter((line) => line.availableQty > 0);
+
+  const assignmentLines = assignmentItems
+    .map((item) => {
+      const availableQty =
+        item.quantityAssigned - item.quantitySold - item.quantityReturned;
+
+      return {
+        id: createSellerReturnLineId("ASSIGNMENT", item.id),
+        sellerId: item.sellerAssignment.sellerId,
+        sellerName: item.sellerAssignment.seller.fullName,
+        branchId: item.sellerAssignment.branchId,
+        branchName: item.sellerAssignment.branch.name,
+        productId: item.productId,
+        productName: item.product.name,
+        sourceLabel: item.sellerAssignment.assignmentNumber,
+        sourceDate: item.assignmentDate.toISOString(),
+        availableQty,
+        direction: "BACK_TO_BRANCH" as const,
+      };
+    })
+    .filter((line) => line.availableQty > 0);
+
+  const lines = [...intakeLines, ...assignmentLines].sort((left, right) => {
+    if (left.branchName === right.branchName) {
+      if (left.sellerName === right.sellerName) {
+        return left.sourceDate.localeCompare(right.sourceDate);
+      }
+
+      return left.sellerName.localeCompare(right.sellerName);
+    }
+
+    return left.branchName.localeCompare(right.branchName);
+  });
+
+  const sellers = [
+    ...new Map(
+      lines.map((line) => [
+        line.sellerId,
+        {
+          id: line.sellerId,
+          name: line.sellerName,
+        },
+      ]),
+    ).values(),
+  ].sort((left, right) => left.name.localeCompare(right.name));
+
+  return {
+    branches: scope.branches,
+    sellers,
+    lines,
+  };
+}
+
 export async function getUserFormOptions(): Promise<UserFormOptions> {
   const branches = await getActiveBranchOptions();
 
@@ -449,7 +670,7 @@ export async function getCustomerPaymentFormOptions(
     };
   }
 
-  const [customers, accounts, outstandingSales] = await Promise.all([
+  const [customers, rawAccounts, outstandingSales] = await Promise.all([
     prisma.customer.findMany({
       where: {
         isActive: true,
@@ -483,6 +704,8 @@ export async function getCustomerPaymentFormOptions(
         name: true,
         type: true,
         branchId: true,
+        bankName: true,
+        accountNumber: true,
         branch: {
           select: {
             name: true,
@@ -523,6 +746,7 @@ export async function getCustomerPaymentFormOptions(
       },
     }),
   ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
   return {
     customers,
@@ -563,7 +787,7 @@ export async function getSupplierPaymentFormOptions(
     };
   }
 
-  const [suppliers, accounts, outstandingPurchases] = await Promise.all([
+  const [suppliers, rawAccounts, outstandingPurchases] = await Promise.all([
     prisma.supplier.findMany({
       where: {
         isActive: true,
@@ -597,6 +821,8 @@ export async function getSupplierPaymentFormOptions(
         name: true,
         type: true,
         branchId: true,
+        bankName: true,
+        accountNumber: true,
         branch: {
           select: {
             name: true,
@@ -611,7 +837,7 @@ export async function getSupplierPaymentFormOptions(
           gt: 0,
         },
         branchId: scope.activeBranchId,
-        ...(supplierId ? { supplierId } : {}),
+        ...(supplierId ? { supplierId } : { supplierId: { not: null } }),
       },
       orderBy: [{ purchasedAt: "asc" }, { createdAt: "asc" }],
       select: {
@@ -634,6 +860,7 @@ export async function getSupplierPaymentFormOptions(
       },
     }),
   ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
   return {
     suppliers,
@@ -643,8 +870,8 @@ export async function getSupplierPaymentFormOptions(
     outstandingPurchases: outstandingPurchases.map((purchase) => ({
       id: purchase.id,
       purchaseNumber: purchase.purchaseNumber,
-      supplierId: purchase.supplierId,
-      supplierName: purchase.supplier.name,
+      supplierId: purchase.supplierId ?? "",
+      supplierName: purchase.supplier?.name ?? "No supplier",
       branchId: purchase.branchId,
       branchName: purchase.branch.name,
       amountDue: toNumber(purchase.amountDue),
@@ -655,22 +882,27 @@ export async function getSupplierPaymentFormOptions(
 
 export async function getSellerSettlementFormOptions(
   sellerId?: string,
+  branchId?: string,
 ): Promise<SellerSettlementFormOptions> {
   const scope = await getCurrentBranchScope();
+  const resolvedBranchId =
+    (branchId && scope.branches.some((branch) => branch.id === branchId) ? branchId : undefined) ??
+    scope.activeBranchId;
 
-  if (!scope.activeBranchId) {
+  if (!resolvedBranchId) {
     return {
       sellers: [],
       accounts: [],
       outstandingBalances: [],
+      lines: [],
     };
   }
 
-  const [accounts, allocations] = await Promise.all([
+  const [rawAccounts, allocations] = await Promise.all([
     prisma.financeAccount.findMany({
       where: {
         isActive: true,
-        OR: [{ branchId: null }, { branchId: scope.activeBranchId }],
+        OR: [{ branchId: null }, { branchId: resolvedBranchId }],
       },
       orderBy: [{ branch: { name: "asc" } }, { name: "asc" }],
       select: {
@@ -678,6 +910,8 @@ export async function getSellerSettlementFormOptions(
         name: true,
         type: true,
         branchId: true,
+        bankName: true,
+        accountNumber: true,
         branch: {
           select: {
             name: true,
@@ -692,7 +926,7 @@ export async function getSellerSettlementFormOptions(
         },
         saleItem: {
           sale: {
-            branchId: scope.activeBranchId,
+            branchId: resolvedBranchId,
           },
         },
         OR: [
@@ -705,6 +939,9 @@ export async function getSellerSettlementFormOptions(
           },
           {
             sellerAssignmentItem: {
+              sellerIntakeItemId: {
+                not: null,
+              },
               sellerAssignment: {
                 ...(sellerId ? { sellerId } : {}),
               },
@@ -713,6 +950,7 @@ export async function getSellerSettlementFormOptions(
         ],
       },
       select: {
+        id: true,
         quantity: true,
         sellerAmount: true,
         settlementAllocations: {
@@ -722,8 +960,15 @@ export async function getSellerSettlementFormOptions(
         },
         saleItem: {
           select: {
+            product: {
+              select: {
+                name: true,
+              },
+            },
             sale: {
               select: {
+                saleNumber: true,
+                soldAt: true,
                 branchId: true,
                 branch: {
                   select: {
@@ -750,6 +995,7 @@ export async function getSellerSettlementFormOptions(
         },
         sellerAssignmentItem: {
           select: {
+            sellerIntakeItemId: true,
             sellerAssignment: {
               select: {
                 sellerId: true,
@@ -765,43 +1011,70 @@ export async function getSellerSettlementFormOptions(
       },
     }),
   ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
+  const lines = allocations
+    .map((allocation) => {
+      const assignmentSeller =
+        allocation.sellerAssignmentItem?.sellerIntakeItemId
+          ? allocation.sellerAssignmentItem.sellerAssignment
+          : null;
+      const sellerIdValue =
+        assignmentSeller?.sellerId ??
+        allocation.sellerIntakeItem?.sellerIntake.sellerId;
+      const sellerName =
+        assignmentSeller?.seller.fullName ??
+        allocation.sellerIntakeItem?.sellerIntake.seller.fullName;
+      const branchId = allocation.saleItem.sale.branchId;
+      const branchName = allocation.saleItem.sale.branch.name;
+      const amountDue = Number(
+        (
+          toNumber(allocation.sellerAmount) * allocation.quantity -
+          allocation.settlementAllocations.reduce(
+            (sum, item) => sum + toNumber(item.amount),
+            0,
+          )
+        ).toFixed(2),
+      );
 
+      if (!sellerIdValue || !sellerName || amountDue <= 0) {
+        return null;
+      }
+
+      return {
+        id: allocation.id,
+        sellerId: sellerIdValue,
+        sellerName,
+        branchId,
+        branchName,
+        productName: allocation.saleItem.product.name,
+        saleNumber: allocation.saleItem.sale.saleNumber,
+        soldAt: allocation.saleItem.sale.soldAt.toISOString(),
+        quantity: allocation.quantity,
+        amountDue,
+      };
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line))
+    .sort((left, right) => {
+      const soldAtDiff = left.soldAt.localeCompare(right.soldAt);
+
+      if (soldAtDiff !== 0) {
+        return soldAtDiff;
+      }
+
+      return left.saleNumber.localeCompare(right.saleNumber);
+    });
   const balances = new Map<string, OutstandingSellerBalanceOption>();
 
-  for (const allocation of allocations) {
-    const sellerIdValue =
-      allocation.sellerAssignmentItem?.sellerAssignment.sellerId ??
-      allocation.sellerIntakeItem?.sellerIntake.sellerId;
-    const sellerName =
-      allocation.sellerAssignmentItem?.sellerAssignment.seller.fullName ??
-      allocation.sellerIntakeItem?.sellerIntake.seller.fullName;
-    const branchId = allocation.saleItem.sale.branchId;
-    const branchName = allocation.saleItem.sale.branch.name;
-
-    if (!sellerIdValue || !sellerName) {
-      continue;
-    }
-
-    const gross = toNumber(allocation.sellerAmount) * allocation.quantity;
-    const settled = allocation.settlementAllocations.reduce(
-      (sum, item) => sum + toNumber(item.amount),
-      0,
-    );
-    const amountDue = Number((gross - settled).toFixed(2));
-
-    if (amountDue <= 0) {
-      continue;
-    }
-
-    const key = `${sellerIdValue}:${branchId}`;
+  for (const line of lines) {
+    const key = `${line.sellerId}:${line.branchId}`;
     const existing = balances.get(key);
 
     balances.set(key, {
-      sellerId: sellerIdValue,
-      sellerName,
-      branchId,
-      branchName,
-      amountDue: Number(((existing?.amountDue ?? 0) + amountDue).toFixed(2)),
+      sellerId: line.sellerId,
+      sellerName: line.sellerName,
+      branchId: line.branchId,
+      branchName: line.branchName,
+      amountDue: Number(((existing?.amountDue ?? 0) + line.amountDue).toFixed(2)),
     });
   }
 
@@ -831,6 +1104,176 @@ export async function getSellerSettlementFormOptions(
       (account) => toFinanceAccountOption(account),
     ),
     outstandingBalances,
+    lines,
+  };
+}
+
+export async function getSellerCollectionFormOptions(
+  sellerId?: string,
+  branchId?: string,
+): Promise<SellerCollectionFormOptions> {
+  const scope = await getCurrentBranchScope();
+  const resolvedBranchId =
+    (branchId && scope.branches.some((branch) => branch.id === branchId) ? branchId : undefined) ??
+    scope.activeBranchId;
+
+  if (!resolvedBranchId) {
+    return {
+      sellers: [],
+      accounts: [],
+      lines: [],
+    };
+  }
+
+  const [rawAccounts, allocations] = await Promise.all([
+    prisma.financeAccount.findMany({
+      where: {
+        isActive: true,
+        OR: [{ branchId: null }, { branchId: resolvedBranchId }],
+      },
+      orderBy: [{ branch: { name: "asc" } }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        branchId: true,
+        bankName: true,
+        accountNumber: true,
+        branch: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    }),
+    prisma.saleItemAllocation.findMany({
+      where: {
+        sourceType: "SELLER_ASSIGNED",
+        saleItem: {
+          sale: {
+            branchId: resolvedBranchId,
+          },
+        },
+        sellerAssignmentItem: {
+          sellerIntakeItemId: null,
+          sellerAssignment: {
+            ...(sellerId ? { sellerId } : {}),
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+      select: {
+        id: true,
+        quantity: true,
+        sellerAmount: true,
+        collectionAllocations: {
+          select: {
+            amount: true,
+          },
+        },
+        saleItem: {
+          select: {
+            sale: {
+              select: {
+                saleNumber: true,
+                soldAt: true,
+                branchId: true,
+                branch: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        sellerAssignmentItem: {
+          select: {
+            sellerAssignment: {
+              select: {
+                sellerId: true,
+                seller: {
+                  select: {
+                    fullName: true,
+                  },
+                },
+              },
+            },
+            product: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
+
+  const lines = allocations
+    .map((allocation) => {
+      const amountDue = Number(
+        (
+          toNumber(allocation.sellerAmount) * allocation.quantity -
+          allocation.collectionAllocations.reduce(
+            (sum, item) => sum + toNumber(item.amount),
+            0,
+          )
+        ).toFixed(2),
+      );
+      const assignment = allocation.sellerAssignmentItem?.sellerAssignment;
+      const product = allocation.sellerAssignmentItem?.product;
+      const sale = allocation.saleItem.sale;
+
+      if (!assignment || !product || amountDue <= 0) {
+        return null;
+      }
+
+      return {
+        id: allocation.id,
+        sellerId: assignment.sellerId,
+        sellerName: assignment.seller.fullName,
+        branchId: sale.branchId,
+        branchName: sale.branch.name,
+        productId: product.id,
+        productName: product.name,
+        saleNumber: sale.saleNumber,
+        soldAt: sale.soldAt.toISOString(),
+        quantity: allocation.quantity,
+        amountDue,
+      };
+    })
+    .filter((line): line is NonNullable<typeof line> => Boolean(line))
+    .sort((left, right) => {
+      const soldAtDiff = left.soldAt.localeCompare(right.soldAt);
+
+      if (soldAtDiff !== 0) {
+        return soldAtDiff;
+      }
+
+      return left.saleNumber.localeCompare(right.saleNumber);
+    });
+
+  const sellers = [
+    ...new Map(
+      lines.map((line) => [
+        line.sellerId,
+        {
+          id: line.sellerId,
+          name: line.sellerName,
+        },
+      ]),
+    ).values(),
+  ].sort((left, right) => left.name.localeCompare(right.name));
+
+  return {
+    sellers,
+    accounts: accounts.map((account) => toFinanceAccountOption(account)),
+    lines,
   };
 }
 
@@ -862,6 +1305,8 @@ export async function getCashTransferFormOptions(): Promise<CashTransferFormOpti
       name: true,
       type: true,
       branchId: true,
+      bankName: true,
+      accountNumber: true,
       branch: {
         select: {
           name: true,
@@ -879,11 +1324,12 @@ export async function getCashTransferFormOptions(): Promise<CashTransferFormOpti
   const mappedAccounts = accounts.map((account) =>
     toCashTransferAccountOption(account),
   );
+  const operationalAccounts = dedupeCashAccountsPerBranch(mappedAccounts);
 
   return {
     branches: scope.branches,
-    cashAccounts: mappedAccounts.filter((account) => account.type === "CASH"),
-    bankAccounts: mappedAccounts.filter((account) => account.type === "BANK"),
+    cashAccounts: operationalAccounts.filter((account) => account.type === "CASH"),
+    bankAccounts: operationalAccounts.filter((account) => account.type === "BANK"),
   };
 }
 
@@ -899,7 +1345,7 @@ export async function getExpenseFormOptions(): Promise<ExpenseFormOptions> {
     };
   }
 
-  const [accounts, categories] = await Promise.all([
+  const [rawAccounts, categories] = await Promise.all([
     prisma.financeAccount.findMany({
       where: {
         isActive: true,
@@ -913,6 +1359,8 @@ export async function getExpenseFormOptions(): Promise<ExpenseFormOptions> {
         name: true,
         type: true,
         branchId: true,
+        bankName: true,
+        accountNumber: true,
         branch: {
           select: {
             name: true,
@@ -932,6 +1380,7 @@ export async function getExpenseFormOptions(): Promise<ExpenseFormOptions> {
       },
     }),
   ]);
+  const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
   return {
     branches: scope.branches,

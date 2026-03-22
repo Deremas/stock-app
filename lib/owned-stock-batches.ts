@@ -150,7 +150,7 @@ export async function getOwnedStockBatches(input: {
       productName: batch.product.name,
       sourceType: "PURCHASE" as const,
       referenceNumber: batch.purchase.purchaseNumber,
-      sourceName: batch.purchase.supplier.name,
+      sourceName: batch.purchase.supplier?.name ?? "No supplier",
       receivedAt: batch.purchase.purchasedAt.toISOString(),
       quantity: batch.quantity,
       soldQuantity,

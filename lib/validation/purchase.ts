@@ -9,7 +9,7 @@ export const purchaseItemSchema = z.object({
 
 export const purchaseSchema = z.object({
   branchId: z.string().min(1, "Select a branch"),
-  supplierId: z.string().min(1, "Select a supplier"),
+  supplierId: z.string().optional().or(z.literal("")),
   paymentAccountId: z.string().optional(),
   settlementMode: z.enum(["UNPAID", "FULL", "PARTIAL"]),
   amountPaid: z.coerce.number().nonnegative("Paid amount must be zero or more"),
@@ -42,6 +42,15 @@ export const purchaseSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: "Select a payment account.",
       path: ["paymentAccountId"],
+    });
+  }
+
+  if (!value.supplierId?.trim() && value.settlementMode !== "FULL") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Choose a supplier for unpaid or partial purchases so the balance can be settled later.",
+      path: ["supplierId"],
     });
   }
 

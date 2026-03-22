@@ -7,13 +7,14 @@ import { LedgerDirection, LedgerEntryType, PaymentStatus } from "@/generated/pri
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
 import {
   customerPaymentSchema,
@@ -23,7 +24,7 @@ import {
 export async function createCustomerPaymentAction(
   input: CustomerPaymentFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("customer-payments:create");
 
   if (!actor) {
     return {
@@ -52,6 +53,13 @@ export async function createCustomerPaymentAction(
   }
 
   const note = normalizeOptionalString(parsed.data.note);
+
+  if (!hasPermission(actor.role, "accounts:use")) {
+    return {
+      success: false,
+      message: "You are not allowed to use payment accounts for customer payments.",
+    };
+  }
 
   try {
     const paymentReference = await prisma.$transaction(async (tx) => {
@@ -199,6 +207,9 @@ export async function createCustomerPaymentAction(
     revalidatePath("/sales/customer-credit");
     revalidatePath("/sales/customer-payments");
     revalidatePath("/sales/sales-list");
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
+    revalidatePath("/finance/ledger");
     revalidatePath("/dashboard");
 
     return {

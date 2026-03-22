@@ -7,7 +7,7 @@ import { LedgerDirection, LedgerEntryType } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   toDecimal,
@@ -22,7 +22,7 @@ import {
 export async function createFinanceAccountAction(
   input: FinanceAccountFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN"]);
+  const actor = await getActionActorByPermission("accounts:manage");
 
   if (!actor) {
     return {
@@ -41,8 +41,13 @@ export async function createFinanceAccountAction(
     };
   }
 
-  const bankName = normalizeOptionalString(parsed.data.bankName);
-  const accountNumber = normalizeOptionalString(parsed.data.accountNumber);
+  const accountName = parsed.data.type === "CASH" ? "Cash" : parsed.data.name;
+  const bankName =
+    parsed.data.type === "BANK" ? normalizeOptionalString(parsed.data.bankName) : null;
+  const accountNumber =
+    parsed.data.type === "BANK"
+      ? normalizeOptionalString(parsed.data.accountNumber)
+      : null;
 
   try {
     const accountReference = await prisma.$transaction(async (tx) => {
@@ -67,30 +72,40 @@ export async function createFinanceAccountAction(
         throw new Error("You do not have access to the selected branch.");
       }
 
-      const duplicate = await tx.financeAccount.findFirst({
-        where: {
-          branchId: branch.id,
-          type: parsed.data.type,
-          OR: [
-            {
-              name: parsed.data.name,
-            },
-            ...(accountNumber
-              ? [
-                  {
-                    accountNumber,
-                  },
-                ]
-              : []),
-          ],
-        },
-        select: {
-          id: true,
-        },
-      });
+      if (parsed.data.type === "CASH") {
+        const existingCashAccount = await tx.financeAccount.findFirst({
+          where: {
+            branchId: branch.id,
+            type: "CASH",
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        });
 
-      if (duplicate) {
-        throw new Error("A similar active finance account already exists for this branch.");
+        if (existingCashAccount) {
+          throw new Error(
+            "This branch already has its cash account. Use the single cash option for branch cash.",
+          );
+        }
+      } else {
+        const duplicateBankAccount = await tx.financeAccount.findFirst({
+          where: {
+            branchId: branch.id,
+            type: "BANK",
+            isActive: true,
+            bankName: bankName ?? null,
+            accountNumber: accountNumber ?? null,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (duplicateBankAccount) {
+          throw new Error("This bank account already exists for the selected branch.");
+        }
       }
 
       const code = createDocumentNumber(parsed.data.type === "BANK" ? "BNK" : "CSH");
@@ -99,7 +114,7 @@ export async function createFinanceAccountAction(
         data: {
           branchId: branch.id,
           code,
-          name: parsed.data.name,
+          name: accountName,
           type: parsed.data.type,
           ...(bankName ? { bankName } : {}),
           ...(accountNumber ? { accountNumber } : {}),

@@ -9,11 +9,13 @@ type SellerAssignedItemsPageProps = {
 export default async function Page({ searchParams }: SellerAssignedItemsPageProps) {
   const params = await searchParams;
   const sellerId = getSingleSearchParam(params, "sellerId");
+  const branchId = getSingleSearchParam(params, "branchId");
 
   return (
     <TablePage
       config={await getTablePageConfig("sellersAssignedItems", {
         ...(sellerId ? { sellerId } : {}),
+        ...(branchId ? { branchId } : {}),
       })}
     />
   );

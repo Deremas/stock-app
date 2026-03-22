@@ -11,13 +11,19 @@ type SellerSettlementsPageProps = {
 export default async function Page({ searchParams }: SellerSettlementsPageProps) {
   const params = await searchParams;
   const sellerId = getSingleSearchParam(params, "sellerId");
+  const branchId = getSingleSearchParam(params, "branchId");
+  const dateFrom = getSingleSearchParam(params, "dateFrom");
+  const dateTo = getSingleSearchParam(params, "dateTo");
   const initialOpen = getSingleSearchParam(params, "open") === "1";
 
   const [config, options] = await Promise.all([
     getTablePageConfig("sellersSettlements", {
       ...(sellerId ? { sellerId } : {}),
+      ...(branchId ? { branchId } : {}),
+      ...(dateFrom ? { dateFrom } : {}),
+      ...(dateTo ? { dateTo } : {}),
     }),
-    getSellerSettlementFormOptions(sellerId),
+    getSellerSettlementFormOptions(sellerId, branchId),
   ]);
 
   return (
@@ -25,7 +31,7 @@ export default async function Page({ searchParams }: SellerSettlementsPageProps)
       config={config}
       actionLabel="New payment"
       dialogTitle="Pay partner payable"
-      dialogDescription="Post full or partial partner settlements without leaving this page."
+      dialogDescription="Select exact sold received-partner lines, enter the birr you are paying for each one, and post the payment to the chosen account."
       initialOpen={initialOpen}
     >
       <SellerSettlementForm

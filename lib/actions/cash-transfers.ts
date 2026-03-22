@@ -7,7 +7,7 @@ import { LedgerDirection, LedgerEntryType } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
@@ -34,7 +34,7 @@ function getAccountBalance(entries: { amount: unknown; direction: "DEBIT" | "CRE
 export async function createCashTransferAction(
   input: CashTransferFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN"]);
+  const actor = await getActionActorByPermission("cash-transfers:manage");
 
   if (!actor) {
     return {

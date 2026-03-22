@@ -7,11 +7,10 @@ import {
   useMaterialReactTable,
   type MRT_ColumnDef,
 } from "material-react-table";
-import { Download } from "lucide-react";
-import { utils, writeFileXLSX } from "xlsx";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TableExportMenu } from "@/components/tables/table-export-menu";
 import {
   getSimpleColumnSizing,
   materialTableBodyCellSx,
@@ -70,10 +69,12 @@ export function DataTable({
   columns,
   data,
   exportFileName = "table-export",
+  exportTitle,
 }: {
   columns: SimpleColumn[];
   data: SimpleRow[];
   exportFileName?: string;
+  exportTitle?: string;
 }) {
   const searchParams = useSearchParams();
   const routeSearch = searchParams.get("q") ?? "";
@@ -126,16 +127,6 @@ export function DataTable({
     () => data.some((row) => (row.__actions?.length ?? 0) > 0),
     [data],
   );
-
-  function handleExport() {
-    const exportRows = data.map((row) =>
-      Object.fromEntries(columns.map((column) => [column.header, row[column.key] ?? ""])),
-    );
-    const worksheet = utils.json_to_sheet(exportRows);
-    const workbook = utils.book_new();
-    utils.book_append_sheet(workbook, worksheet, "Data");
-    writeFileXLSX(workbook, `${exportFileName}.xlsx`);
-  }
 
   const table = useMaterialReactTable({
     columns: mrtColumns,
@@ -207,12 +198,22 @@ export function DataTable({
     },
     muiSearchTextFieldProps: materialTableSearchTextFieldProps,
     muiPaginationProps: materialTablePaginationProps,
-    renderTopToolbarCustomActions: () => (
-      <Button onClick={handleExport} size="sm" variant="outline">
-        <Download className="h-4 w-4" />
-        Export
-      </Button>
-    ),
+    renderTopToolbarCustomActions: ({ table }) => {
+      const visibleColumnKeys = table.getVisibleLeafColumns().map((column) => column.id);
+      const exportColumns = columns.filter((column) =>
+        visibleColumnKeys.includes(column.key),
+      );
+      const exportRows = table.getPrePaginationRowModel().rows.map((row) => row.original);
+
+      return (
+        <TableExportMenu
+          title={exportTitle ?? exportFileName}
+          fileName={exportFileName}
+          columns={exportColumns}
+          rows={exportRows}
+        />
+      );
+    },
     renderRowActions: ({ row }) => {
       const actions = row.original.__actions ?? [];
 

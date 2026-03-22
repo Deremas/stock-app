@@ -37,6 +37,7 @@ import {
   purchaseSchema,
   type PurchaseFormInput,
 } from "@/lib/validation/purchase";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 
 type PurchaseFormProps = {
   options: PurchaseFormOptions;
@@ -130,7 +131,7 @@ function getDefaultValues(
 
   return {
     branchId: defaultBranch?.id ?? "",
-    supplierId: options.suppliers[0]?.id ?? "",
+    supplierId: "",
     paymentAccountId: "",
     settlementMode: "UNPAID",
     amountPaid: 0,
@@ -169,7 +170,6 @@ export function PurchaseForm({
   );
   const canSubmit =
     options.branches.length > 0 &&
-    supplierOptions.length > 0 &&
     options.products.length > 0;
 
   const form = useForm<PurchaseFormInput>({
@@ -247,8 +247,8 @@ export function PurchaseForm({
       return;
     }
 
-    if (!supplierOptions.some((supplier) => supplier.id === supplierId)) {
-      form.setValue("supplierId", supplierOptions[0]?.id ?? "", {
+    if (supplierId && !supplierOptions.some((supplier) => supplier.id === supplierId)) {
+      form.setValue("supplierId", "", {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -324,7 +324,7 @@ export function PurchaseForm({
         initialProductId,
       ),
       branchId: form.getValues("branchId") || defaultValues.branchId,
-      supplierId: form.getValues("supplierId") || supplierOptions[0]?.id || "",
+      supplierId: form.getValues("supplierId") || "",
     } satisfies PurchaseFormInput;
   }
 
@@ -399,7 +399,7 @@ export function PurchaseForm({
             <CardTitle>Purchase entry</CardTitle>
             {!canSubmit ? (
               <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                Need branch, supplier, and item.
+                Need branch and item.
               </p>
             ) : null}
           </div>
@@ -426,7 +426,7 @@ export function PurchaseForm({
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="supplierId">Supplier</Label>
+                <Label htmlFor="supplierId">Supplier (optional)</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -446,6 +446,10 @@ export function PurchaseForm({
                   </option>
                 ))}
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Leave blank for a direct purchase paid now. Choose a supplier if this purchase
+                needs payable tracking or later settlement.
+              </p>
               {form.formState.errors.supplierId?.message ? (
                 <p className="text-xs text-destructive">
                   {form.formState.errors.supplierId.message}
@@ -613,8 +617,7 @@ export function PurchaseForm({
                     <option value="">Select payment account</option>
                     {availableAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.name}
-                        {account.branchName ? ` | ${account.branchName}` : ""}
+                        {formatFinanceAccountLabel(account)}
                       </option>
                     ))}
                   </Select>

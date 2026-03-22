@@ -7,7 +7,7 @@ import { LedgerDirection, LedgerEntryType, PaymentStatus } from "@/generated/pri
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
@@ -23,7 +23,7 @@ import {
 export async function createSupplierPaymentAction(
   input: SupplierPaymentFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("accounts:manage");
 
   if (!actor) {
     return {
@@ -200,6 +200,9 @@ export async function createSupplierPaymentAction(
     revalidatePath("/purchases/suppliers");
     revalidatePath("/purchases/list");
     revalidatePath("/purchases/supplier-payments");
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
+    revalidatePath("/finance/ledger");
     revalidatePath("/dashboard");
 
     return {

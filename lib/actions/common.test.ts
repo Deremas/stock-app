@@ -5,6 +5,7 @@ import {
   normalizeOptionalString,
   parseInputDate,
 } from "./helpers";
+import { purchaseSchema } from "../validation/purchase";
 import { saleSchema } from "../validation/sale";
 
 describe("action helpers", () => {
@@ -38,6 +39,69 @@ describe("sale validation", () => {
           quantity: 1,
           unitPrice: 100,
           discount: 120,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("requires a customer for credit sales", () => {
+    const result = saleSchema.safeParse({
+      branchId: "branch-hq",
+      customerId: "",
+      paymentMethod: "CREDIT",
+      soldAt: "2026-03-19T10:00",
+      items: [
+        {
+          productId: "prd-1",
+          quantity: 1,
+          unitPrice: 100,
+          discount: 0,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("purchase validation", () => {
+  it("allows fully paid purchases without a supplier", () => {
+    const result = purchaseSchema.safeParse({
+      branchId: "branch-hq",
+      supplierId: "",
+      settlementMode: "FULL",
+      paymentAccountId: "cash-1",
+      amountPaid: 100,
+      purchasedAt: "2026-03-19T10:00",
+      items: [
+        {
+          productId: "prd-1",
+          quantity: 1,
+          unitCost: 100,
+          sellingPrice: 120,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("requires a supplier for unpaid purchases", () => {
+    const result = purchaseSchema.safeParse({
+      branchId: "branch-hq",
+      supplierId: "",
+      settlementMode: "UNPAID",
+      paymentAccountId: "",
+      amountPaid: 0,
+      purchasedAt: "2026-03-19T10:00",
+      items: [
+        {
+          productId: "prd-1",
+          quantity: 1,
+          unitCost: 100,
+          sellingPrice: 120,
         },
       ],
     });

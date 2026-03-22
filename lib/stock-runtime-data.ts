@@ -35,6 +35,7 @@ export async function getOpenSellerPayablesBySeller(branchId?: string) {
         },
         sellerAssignmentItem: {
           select: {
+            sellerIntakeItemId: true,
             sellerAssignment: {
               select: {
                 sellerId: true,
@@ -54,7 +55,9 @@ export async function getOpenSellerPayablesBySeller(branchId?: string) {
 
     for (const allocation of allocations) {
       const sellerId =
-        allocation.sellerAssignmentItem?.sellerAssignment.sellerId ??
+        (allocation.sellerAssignmentItem?.sellerIntakeItemId
+          ? allocation.sellerAssignmentItem.sellerAssignment.sellerId
+          : undefined) ??
         allocation.sellerIntakeItem?.sellerIntake.sellerId;
 
       if (!sellerId) {
@@ -72,6 +75,73 @@ export async function getOpenSellerPayablesBySeller(branchId?: string) {
     return payables;
   } catch (error) {
     console.error("Unable to load open seller payables.", error);
+    return new Map<string, number>();
+  }
+}
+
+export async function getOpenSellerCollectionsBySeller(branchId?: string) {
+  try {
+    const allocations = await prisma.saleItemAllocation.findMany({
+      where: {
+        sourceType: "SELLER_ASSIGNED",
+        ...(branchId
+          ? {
+              saleItem: {
+                sale: {
+                  branchId,
+                },
+              },
+            }
+          : {}),
+      },
+      select: {
+        quantity: true,
+        sellerAmount: true,
+        sellerAssignmentItem: {
+          select: {
+            sellerIntakeItemId: true,
+            sellerAssignment: {
+              select: {
+                sellerId: true,
+              },
+            },
+          },
+        },
+        collectionAllocations: {
+          select: {
+            amount: true,
+          },
+        },
+      },
+    });
+
+    const collections = new Map<string, number>();
+
+    for (const allocation of allocations) {
+      if (allocation.sellerAssignmentItem?.sellerIntakeItemId) {
+        continue;
+      }
+
+      const sellerId = allocation.sellerAssignmentItem?.sellerAssignment.sellerId;
+
+      if (!sellerId) {
+        continue;
+      }
+
+      const gross = toNumber(allocation.sellerAmount) * allocation.quantity;
+      const collected = sumRows(
+        allocation.collectionAllocations.map((item) => toNumber(item.amount)),
+      );
+
+      collections.set(
+        sellerId,
+        (collections.get(sellerId) ?? 0) + gross - collected,
+      );
+    }
+
+    return collections;
+  } catch (error) {
+    console.error("Unable to load open seller collections.", error);
     return new Map<string, number>();
   }
 }

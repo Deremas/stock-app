@@ -23,6 +23,8 @@ import {
   Trash2,
   Truck,
   Users,
+  UserCheck,
+  UserX,
   Wallet,
 } from "lucide-react";
 
@@ -59,6 +61,8 @@ export const iconMap = {
   settings: Settings,
   trash: Trash2,
   users: Users,
+  userCheck: UserCheck,
+  userX: UserX,
   roles: ShieldCheck,
   ledger: ScrollText,
   auditLogs: ScrollText,

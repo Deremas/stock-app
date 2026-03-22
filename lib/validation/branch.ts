@@ -14,4 +14,9 @@ export const branchSchema = z.object({
     .or(z.literal("")),
 });
 
+export const branchUpdateSchema = branchSchema.extend({
+  id: z.string().trim().min(1, "Branch id is required."),
+});
+
 export type BranchFormInput = z.infer<typeof branchSchema>;
+export type BranchUpdateFormInput = z.infer<typeof branchUpdateSchema>;

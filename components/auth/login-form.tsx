@@ -218,7 +218,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
 
   return (
     <form
-      className="space-y-5"
+      className="space-y-4 sm:space-y-5"
       onChangeCapture={() => {
         if (authError) {
           setAuthError(null);
@@ -236,7 +236,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
           Email, Username, or Phone
         </Label>
         <Input
-          className="h-12 rounded-xl border-slate-300 bg-white text-slate-900 shadow-sm placeholder:text-slate-500 focus-visible:ring-primary/85 focus-visible:ring-offset-0"
+          className="h-11 rounded-xl border-slate-300 bg-white text-slate-900 shadow-sm placeholder:text-slate-500 focus-visible:ring-primary/85 focus-visible:ring-offset-0 sm:h-12"
           id="identifier"
           placeholder="name@example.com, username, or phone"
           {...form.register("identifier")}
@@ -253,7 +253,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
         </Label>
         <div className="relative">
           <Input
-            className="h-12 rounded-xl border-slate-300 bg-white pr-12 text-slate-900 shadow-sm placeholder:text-slate-500 focus-visible:ring-primary/85 focus-visible:ring-offset-0"
+            className="h-11 rounded-xl border-slate-300 bg-white pr-12 text-slate-900 shadow-sm placeholder:text-slate-500 focus-visible:ring-primary/85 focus-visible:ring-offset-0 sm:h-12"
             id="password"
             type={showPassword ? "text" : "password"}
             {...form.register("password")}
@@ -274,7 +274,7 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
           </p>
         ) : null}
       </div>
-      <Button className="h-12 w-full rounded-xl shadow-sm" type="submit" disabled={isPending}>
+      <Button className="h-11 w-full rounded-xl shadow-sm sm:h-12" type="submit" disabled={isPending}>
         {isPending ? "Signing in..." : "Sign in"}
       </Button>
     </form>

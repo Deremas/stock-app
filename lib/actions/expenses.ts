@@ -7,20 +7,21 @@ import { LedgerDirection, LedgerEntryType } from "@/generated/prisma/enums";
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
 import { expenseSchema, type ExpenseFormInput } from "@/lib/validation/expense";
 
 export async function createExpenseAction(
   input: ExpenseFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN"]);
+  const actor = await getActionActorByPermission("expenses:create");
 
   if (!actor) {
     return {
@@ -49,6 +50,13 @@ export async function createExpenseAction(
   }
 
   const note = normalizeOptionalString(parsed.data.note);
+
+  if (!hasPermission(actor.role, "accounts:use")) {
+    return {
+      success: false,
+      message: "You are not allowed to use payment accounts for expenses.",
+    };
+  }
 
   try {
     const expenseReference = await prisma.$transaction(async (tx) => {
@@ -160,8 +168,11 @@ export async function createExpenseAction(
     });
 
     revalidatePath("/finance/expenses");
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
     revalidatePath("/finance/ledger");
     revalidatePath("/reports/finance");
+    revalidatePath("/sales/daily-check");
     revalidatePath("/dashboard");
 
     return {

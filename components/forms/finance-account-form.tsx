@@ -49,9 +49,13 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
   });
 
   const type = form.watch("type");
+  const branchId = form.watch("branchId");
+  const branchHasCashAccount = options.cashBranchIds.includes(branchId);
+  const canSubmit = !(type === "CASH" && branchHasCashAccount);
 
   useEffect(() => {
     if (type === "CASH") {
+      form.setValue("name", "Cash", { shouldDirty: true });
       form.setValue("bankName", "", { shouldDirty: true });
       form.setValue("accountNumber", "", { shouldDirty: true });
     }
@@ -108,7 +112,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
     >
       <Card>
         <CardHeader>
-          <CardTitle>New finance account</CardTitle>
+          <CardTitle>New bank or cash account</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <FormFeedback
@@ -141,20 +145,35 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
               </p>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="finance-account-name">
-                {type === "BANK" ? "Account / person name" : "Cash account name"}
-              </Label>
-              <Input
-                id="finance-account-name"
-                placeholder={type === "BANK" ? "Account holder name" : "Main cash drawer"}
-                {...form.register("name")}
-              />
-              <p className="text-xs text-destructive">
-                {form.formState.errors.name?.message}
-              </p>
+          {type === "CASH" ? (
+            <div className="rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
+              Each branch uses one shared cash account. It will be created as <span className="font-medium text-foreground">Cash</span> for the selected branch.
             </div>
+          ) : null}
+          {type === "CASH" && branchHasCashAccount ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              This branch already has its cash account. Create another bank account instead.
+            </div>
+          ) : null}
+          <div className="grid gap-4 md:grid-cols-2">
+            {type === "BANK" ? (
+              <div className="space-y-2">
+                <Label htmlFor="finance-account-name">Account / person name</Label>
+                <Input
+                  id="finance-account-name"
+                  placeholder="Abebe"
+                  {...form.register("name")}
+                />
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.name?.message}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Cash account</Label>
+                <Input value="Cash" readOnly />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="finance-account-initial-balance">Initial balance</Label>
               <Input
@@ -175,7 +194,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
                 <Label htmlFor="finance-account-bank-name">Bank name</Label>
                 <Input
                   id="finance-account-bank-name"
-                  placeholder="Commercial Bank of Ethiopia"
+                  placeholder="CBE"
                   {...form.register("bankName")}
                 />
                 <p className="text-xs text-destructive">
@@ -186,7 +205,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
                 <Label htmlFor="finance-account-number">Account number</Label>
                 <Input
                   id="finance-account-number"
-                  placeholder="1000..."
+                  placeholder="10002346986787"
                   {...form.register("accountNumber")}
                 />
                 <p className="text-xs text-destructive">
@@ -216,7 +235,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
             >
               Cancel
             </Button>
-            <Button className="sm:flex-1" type="submit" disabled={isPending}>
+            <Button className="sm:flex-1" type="submit" disabled={isPending || !canSubmit}>
               {isPending ? "Saving..." : "Create account"}
             </Button>
           </div>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions/common";
 import {
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
 } from "@/lib/actions/common";
@@ -47,7 +47,7 @@ async function generateUniqueItemSku(
 export async function createProductAction(
   input: ProductInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("inventory:manage");
 
   if (!actor) {
     return {
@@ -142,7 +142,7 @@ export async function createProductAction(
 export async function updateProductAction(
   input: ProductUpdateInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("inventory:manage");
 
   if (!actor) {
     return {
@@ -257,7 +257,7 @@ export async function updateProductAction(
 export async function deleteProductAction(
   input: ProductDeleteInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN"]);
+  const actor = await getActionActorByPermission("admin:manage");
 
   if (!actor) {
     return {

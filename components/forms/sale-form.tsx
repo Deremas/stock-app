@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createSaleAction } from "@/lib/actions/sales";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { SaleFormOptions } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import { saleSchema, type SaleFormInput } from "@/lib/validation/sale";
@@ -86,6 +87,22 @@ function getBranchProductStock(
   );
 }
 
+function getAvailableAccountsForSale(
+  options: SaleFormOptions,
+  branchId: string | undefined,
+  paymentMethod: SaleFormInput["paymentMethod"],
+) {
+  if (paymentMethod === "CREDIT") {
+    return [];
+  }
+
+  return options.accounts.filter(
+    (account) =>
+      (!branchId || !account.branchId || account.branchId === branchId) &&
+      account.type === paymentMethod,
+  );
+}
+
 function getDefaultValues(
   options: SaleFormOptions,
   initialBranchId?: string,
@@ -102,6 +119,23 @@ function getDefaultValues(
     selectedBranch?.id,
     defaultProduct?.id,
   );
+  const defaultCashAccounts = getAvailableAccountsForSale(
+    options,
+    selectedBranch?.id,
+    "CASH",
+  );
+  const defaultBankAccounts = getAvailableAccountsForSale(
+    options,
+    selectedBranch?.id,
+    "BANK",
+  );
+  const defaultPaymentMethod = defaultCashAccounts[0]
+    ? "CASH"
+    : defaultBankAccounts[0]
+      ? "BANK"
+      : "CREDIT";
+  const defaultFinanceAccount =
+    defaultPaymentMethod === "BANK" ? defaultBankAccounts[0] : defaultCashAccounts[0];
   const defaultStock = getBranchProductStock(
     options,
     selectedBranch?.id,
@@ -111,7 +145,8 @@ function getDefaultValues(
   return {
     branchId: selectedBranch?.id ?? "",
     customerId: "",
-    paymentMethod: "CASH",
+    paymentMethod: defaultPaymentMethod,
+    financeAccountId: defaultFinanceAccount?.id ?? "",
     soldAt: new Date().toISOString().slice(0, 16),
     note: "",
     items: [
@@ -162,9 +197,18 @@ export function SaleForm({
 
   const branchId = form.watch("branchId");
   const customerId = form.watch("customerId");
+  const paymentMethod = form.watch("paymentMethod");
+  const financeAccountId = form.watch("financeAccountId");
   const items = form.watch("items");
   const currentBranchProducts = getAvailableProductsForBranch(options, branchId);
+  const availablePaymentAccounts = getAvailableAccountsForSale(
+    options,
+    branchId,
+    paymentMethod,
+  );
   const canSubmit = options.branches.length > 0 && currentBranchProducts.length > 0;
+  const canPostWithPaymentAccount =
+    paymentMethod === "CREDIT" || availablePaymentAccounts.length > 0;
   const previousBranchId = useRef(defaultValues.branchId);
   const previousLineState = useRef(
     defaultValues.items.map((item) => ({
@@ -258,6 +302,25 @@ export function SaleForm({
       });
     }
   }, [customerId, customerOptions, form]);
+
+  useEffect(() => {
+    if (paymentMethod === "CREDIT") {
+      if (financeAccountId) {
+        form.setValue("financeAccountId", "", {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
+      return;
+    }
+
+    if (!availablePaymentAccounts.some((account) => account.id === financeAccountId)) {
+      form.setValue("financeAccountId", availablePaymentAccounts[0]?.id ?? "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [availablePaymentAccounts, financeAccountId, form, paymentMethod]);
 
   function handleCancel() {
     setSubmitError(null);
@@ -361,7 +424,11 @@ export function SaleForm({
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground">
-                Leave this as walk-in for fast counter sales when no customer record is needed.
+                Leave this as walk-in for cash or bank sales when no customer record is needed.
+                Credit sales require a customer.
+              </p>
+              <p className="text-xs text-destructive">
+                {form.formState.errors.customerId?.message}
               </p>
             </div>
           </div>
@@ -371,15 +438,63 @@ export function SaleForm({
               <Select id="paymentMethod" {...form.register("paymentMethod")}>
                 <option value="CASH">Cash</option>
                 <option value="BANK">Bank</option>
-                <option value="MIXED">Mixed</option>
                 <option value="CREDIT">Credit</option>
               </Select>
+              <p className="text-xs text-destructive">
+                {form.formState.errors.paymentMethod?.message}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="soldAt">Sale date</Label>
               <Input id="soldAt" type="datetime-local" {...form.register("soldAt")} />
+              <p className="text-xs text-destructive">
+                {form.formState.errors.soldAt?.message}
+              </p>
             </div>
           </div>
+          {paymentMethod !== "CREDIT" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="financeAccountId">
+                  {paymentMethod === "BANK" ? "Bank account" : "Cash account"}
+                </Label>
+                <Select id="financeAccountId" {...form.register("financeAccountId")}>
+                  <option value="">
+                    {paymentMethod === "BANK"
+                      ? "Select bank account"
+                      : "Select cash account"}
+                  </option>
+                  {availablePaymentAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {formatFinanceAccountLabel(account)}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {paymentMethod === "BANK"
+                    ? "Bank sales post into the selected bank account."
+                    : "Cash sales post into the single branch cash account."}
+                </p>
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.financeAccountId?.message}
+                </p>
+              </div>
+              {availablePaymentAccounts.length === 0 ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  No active {paymentMethod === "BANK" ? "bank" : "cash"} account is available for
+                  this branch yet.
+                </div>
+              ) : (
+                <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
+                  The selected account will receive the full paid amount for this sale.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
+              Credit sales do not hit cash or bank until you record a payment later.
+            </div>
+          )}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -610,7 +725,11 @@ export function SaleForm({
             >
               Cancel
             </Button>
-            <Button className="sm:flex-1" type="submit" disabled={isPending || !canSubmit}>
+            <Button
+              className="sm:flex-1"
+              type="submit"
+              disabled={isPending || !canSubmit || !canPostWithPaymentAccount}
+            >
               {isPending ? "Saving..." : "Save sale"}
             </Button>
           </div>

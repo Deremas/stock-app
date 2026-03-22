@@ -12,6 +12,7 @@ export default async function Page({ searchParams }: SellerAssignItemsPageProps)
   const params = await searchParams;
   const initialOpen = getSingleSearchParam(params, "open") === "1";
   const initialBatchId = getSingleSearchParam(params, "batchId");
+  const initialSellerId = getSingleSearchParam(params, "sellerId");
   const [config, options] = await Promise.all([
     getTablePageConfig("sellersAssignItems"),
     getSellerAssignmentFormOptions(),
@@ -21,13 +22,14 @@ export default async function Page({ searchParams }: SellerAssignItemsPageProps)
     <ModalTablePage
       config={config}
       actionLabel="New assignment"
-      dialogTitle="Assign items to seller"
-      dialogDescription="Choose available owned batches, assign quantities, and set the seller price per line."
+      dialogTitle="Assign items to partner"
+      dialogDescription="Choose available owned batches, assign quantities, and set the partner remittance price per line."
       initialOpen={initialOpen}
     >
       <SellerAssignmentForm
         options={options}
         {...(initialBatchId ? { initialBatchId } : {})}
+        {...(initialSellerId ? { initialSellerId } : {})}
       />
     </ModalTablePage>
   );

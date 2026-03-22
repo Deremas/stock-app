@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { createSellerAssignmentAction } from "@/lib/actions/seller-assignments";
 import type { SellerAssignmentFormOptions } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
@@ -26,6 +25,7 @@ import {
 type SellerAssignmentFormProps = {
   options: SellerAssignmentFormOptions;
   initialBatchId?: string;
+  initialSellerId?: string;
 };
 
 function getBatchesForBranch(
@@ -42,6 +42,7 @@ function getBatchesForBranch(
 function getDefaultValues(
   options: SellerAssignmentFormOptions,
   initialBatchId?: string,
+  initialSellerId?: string,
 ): SellerAssignmentFormInput {
   const seededBatch = options.ownedBatches.find((batch) => batch.id === initialBatchId);
   const selectedBranch =
@@ -53,7 +54,8 @@ function getDefaultValues(
 
   return {
     branchId: selectedBranch?.id ?? "",
-    sellerId: "",
+    sellerId:
+      options.sellers.find((seller) => seller.id === initialSellerId)?.id ?? "",
     assignmentDate: new Date().toISOString().slice(0, 16),
     note: "",
     items: [
@@ -69,13 +71,17 @@ function getDefaultValues(
 export function SellerAssignmentForm({
   options,
   initialBatchId,
+  initialSellerId,
 }: SellerAssignmentFormProps) {
   const createDialog = useCreateDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const defaultValues = getDefaultValues(options, initialBatchId);
-  const canSubmit = options.branches.length > 0 && options.ownedBatches.length > 0;
+  const defaultValues = getDefaultValues(options, initialBatchId, initialSellerId);
+  const hasBranches = options.branches.length > 0;
+  const hasOwnedBatches = options.ownedBatches.length > 0;
+  const hasSellers = options.sellers.length > 0;
+  const canSubmit = hasBranches && hasOwnedBatches && hasSellers;
 
   const form = useForm<SellerAssignmentFormInput>({
     resolver: zodResolver(sellerAssignmentSchema),
@@ -89,6 +95,16 @@ export function SellerAssignmentForm({
 
   const branchId = form.watch("branchId");
   const items = form.watch("items");
+  const availableBranchBatches = getBatchesForBranch(options, branchId);
+  const totalAssignedQuantity = items.reduce(
+    (sum, item) => sum + Number(item.quantityAssigned || 0),
+    0,
+  );
+  const projectedSellerValue = items.reduce(
+    (sum, item) =>
+      sum + Number(item.quantityAssigned || 0) * Number(item.sellingPrice || 0),
+    0,
+  );
   const previousBranchId = useRef(defaultValues.branchId);
   const previousBatchIds = useRef(defaultValues.items.map((item) => item.ownedBatchId));
 
@@ -148,9 +164,19 @@ export function SellerAssignmentForm({
     });
   }
 
+  function handleAppendItem() {
+    const nextBatch = availableBranchBatches[0];
+
+    append({
+      ownedBatchId: nextBatch?.id ?? "",
+      quantityAssigned: 1,
+      sellingPrice: nextBatch?.sellingPrice ?? 0,
+    });
+  }
+
   return (
     <form
-      className="grid gap-6 xl:grid-cols-[2fr_1fr]"
+      className="grid gap-3 sm:gap-6 xl:grid-cols-[2fr_1fr]"
       onChangeCapture={() => {
         if (submitError) {
           setSubmitError(null);
@@ -159,21 +185,36 @@ export function SellerAssignmentForm({
       onSubmit={form.handleSubmit(onSubmit)}
     >
       <Card>
-        <CardHeader>
-          <CardTitle>Seller assignment</CardTitle>
+        <CardHeader className="p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>Partner assignment</CardTitle>
+            {!canSubmit ? (
+              <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+                Need branch, partner, and available stock.
+              </p>
+            ) : null}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 p-4 pt-0 sm:space-y-6 sm:p-6 sm:pt-0">
           <FormFeedback
             errors={form.formState.errors}
             submitError={submitError}
             showValidationSummary={form.formState.submitCount > 0}
           />
-          {!canSubmit ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          {!hasOwnedBatches ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
               No owned batches are available to assign in your branches yet.
             </div>
+          ) : !hasSellers ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
+              Add a partner first before posting an assignment.
+            </div>
+          ) : !hasBranches ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 sm:p-4">
+              Add a branch first before posting an assignment.
+            </div>
           ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="seller-assignment-branch">Branch</Label>
               <Select id="seller-assignment-branch" {...form.register("branchId")}>
@@ -183,11 +224,16 @@ export function SellerAssignmentForm({
                   </option>
                 ))}
               </Select>
+              {form.formState.errors.branchId?.message ? (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.branchId.message}
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="seller-assignment-seller">Seller</Label>
+              <Label htmlFor="seller-assignment-seller">Partner</Label>
               <Select id="seller-assignment-seller" {...form.register("sellerId")}>
-                <option value="">Select seller</option>
+                <option value="">Select partner</option>
                 {options.sellers.map((seller) => (
                   <option key={seller.id} value={seller.id}>
                     {seller.name}
@@ -199,66 +245,63 @@ export function SellerAssignmentForm({
               </p>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
+          <div className="grid gap-3">
+            <div className="w-full max-w-[18rem] space-y-2 sm:max-w-[19rem]">
               <Label htmlFor="seller-assignment-date">Assignment date</Label>
               <Input
                 id="seller-assignment-date"
                 type="datetime-local"
                 {...form.register("assignmentDate")}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seller-assignment-note">Note</Label>
-              <Textarea
-                id="seller-assignment-note"
-                rows={3}
-                {...form.register("note")}
-              />
+              {form.formState.errors.assignmentDate?.message ? (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.assignmentDate.message}
+                </p>
+              ) : null}
             </div>
           </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Assignment lines
               </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={getBatchesForBranch(options, branchId).length === 0}
-                onClick={() => {
-                  const branchBatches = getBatchesForBranch(options, branchId);
-                  const nextBatch = branchBatches[0];
-
-                  append({
-                    ownedBatchId: nextBatch?.id ?? "",
-                    quantityAssigned: 1,
-                    sellingPrice: nextBatch?.sellingPrice ?? 0,
-                  });
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Add batch
-              </Button>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-2.5 sm:space-y-4">
               {fields.map((field, index) => {
-                const branchBatches = getBatchesForBranch(options, branchId);
-                const selectedBatch = branchBatches.find(
+                const selectedBatch = availableBranchBatches.find(
                   (batch) => batch.id === items[index]?.ownedBatchId,
                 );
                 const currentQuantity = Number(items[index]?.quantityAssigned ?? 1);
                 const maxQuantity = selectedBatch?.remainingQuantity ?? 0;
 
                 return (
-                  <div key={field.id} className="rounded-2xl border border-border p-4">
-                    <div className="grid gap-4 lg:grid-cols-[2fr_1fr_1fr_auto]">
-                      <div className="space-y-2">
-                        <Label>Batch</Label>
+                  <div
+                    key={field.id}
+                    className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                        Line {index + 1}
+                      </p>
+                      {fields.length > 1 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 px-2.5 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
+                          onClick={() => remove(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Remove
+                        </Button>
+                      ) : null}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,2.8fr)_minmax(108px,0.9fr)_minmax(144px,1fr)] lg:items-start">
+                      <div className="col-span-2 space-y-2 lg:col-span-1">
+                        <Label className="text-xs font-medium sm:text-sm">Batch</Label>
                         <Select {...form.register(`items.${index}.ownedBatchId`)}>
                           <option value="">Select available batch</option>
-                          {branchBatches.map((batch) => (
+                          {availableBranchBatches.map((batch) => (
                             <option key={batch.id} value={batch.id}>
                               {batch.productName} | {batch.referenceNumber} | {batch.remainingQuantity} left
                             </option>
@@ -269,13 +312,13 @@ export function SellerAssignmentForm({
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <Label>Qty</Label>
+                        <Label className="text-xs font-medium sm:text-sm">Qty</Label>
                         <div className="flex items-center rounded-xl border border-border bg-background">
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-10 w-10 rounded-none rounded-l-xl"
+                            className="h-9 w-9 rounded-none rounded-l-xl sm:h-10 sm:w-10"
                             disabled={currentQuantity <= 1}
                             onClick={() =>
                               form.setValue(
@@ -291,14 +334,14 @@ export function SellerAssignmentForm({
                             type="number"
                             min={1}
                             max={maxQuantity || undefined}
-                            className="border-0 text-center shadow-none focus-visible:ring-0"
+                            className="h-9 border-0 px-1 text-center shadow-none focus-visible:ring-0 sm:h-10"
                             {...form.register(`items.${index}.quantityAssigned`)}
                           />
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-10 w-10 rounded-none rounded-r-xl"
+                            className="h-9 w-9 rounded-none rounded-r-xl sm:h-10 sm:w-10"
                             disabled={maxQuantity > 0 ? currentQuantity >= maxQuantity : false}
                             onClick={() =>
                               form.setValue(
@@ -311,62 +354,56 @@ export function SellerAssignmentForm({
                             <Plus className="h-4 w-4" />
                           </Button>
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-[11px] text-muted-foreground sm:text-xs">
                           {maxQuantity > 0
-                            ? `Available from batch: ${maxQuantity}`
-                            : "No remaining quantity is available in this batch."}
+                            ? `${maxQuantity} available in this batch.`
+                            : "No quantity is left in this batch."}
                         </p>
                         <p className="text-xs text-destructive">
                           {form.formState.errors.items?.[index]?.quantityAssigned?.message}
                         </p>
                       </div>
                       <div className="space-y-2">
-                        <Label>Seller Price / Unit</Label>
+                        <Label className="text-xs font-medium sm:text-sm">
+                          Partner Pays / Unit
+                        </Label>
                         <Input
                           type="number"
                           min={0}
                           step="0.01"
                           {...form.register(`items.${index}.sellingPrice`)}
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Defaults from the selected batch and can be adjusted for this assignment.
+                        <p className="text-[11px] text-muted-foreground sm:text-xs">
+                          Use the amount the partner should remit for each sold unit from this assignment.
                         </p>
                         <p className="text-xs text-destructive">
                           {form.formState.errors.items?.[index]?.sellingPrice?.message}
                         </p>
                       </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => remove(index)}
-                          disabled={fields.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </div>
                     {selectedBatch ? (
-                      <div className="mt-4 grid gap-2 rounded-2xl bg-muted/40 p-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+                      <div className="mt-3 grid gap-2 rounded-2xl bg-background/80 p-3 text-[11px] text-muted-foreground sm:text-xs md:grid-cols-2 xl:grid-cols-4">
                         <p>
-                          Item: <span className="font-medium">{selectedBatch.productName}</span>
+                          Item:{" "}
+                          <span className="font-medium text-foreground">
+                            {selectedBatch.productName}
+                          </span>
                         </p>
                         <p>
                           Source:{" "}
-                          <span className="font-medium">
+                          <span className="font-medium text-foreground">
                             {selectedBatch.referenceNumber} / {selectedBatch.sourceName}
                           </span>
                         </p>
                         <p>
                           Buying Price:{" "}
-                          <span className="font-medium">
+                          <span className="font-medium text-foreground">
                             {formatCurrency(selectedBatch.unitCost)}
                           </span>
                         </p>
                         <p>
                           Current Sell Price:{" "}
-                          <span className="font-medium">
+                          <span className="font-medium text-foreground">
                             {formatCurrency(selectedBatch.sellingPrice)}
                           </span>
                         </p>
@@ -376,19 +413,46 @@ export function SellerAssignmentForm({
                 );
               })}
             </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={availableBranchBatches.length === 0}
+                onClick={handleAppendItem}
+              >
+                <Plus className="h-4 w-4" />
+                Add batch
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 sm:p-6">
           <CardTitle>Assignment summary</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            Assigning to a seller moves the quantity out of owned stock and into seller-assigned stock while preserving the source batch cost.
+        <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
+          <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Lines</p>
+                <p className="mt-1 text-2xl font-semibold">{fields.length}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Units</p>
+                <p className="mt-1 text-2xl font-semibold">{totalAssignedQuantity}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Collection value</p>
+                <p className="mt-1 text-xl font-semibold">
+                  {formatCurrency(projectedSellerValue)}
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            Later sales from seller-assigned stock will keep cost and seller price traceable per assignment line.
+          <div className="rounded-2xl bg-muted/60 p-3 text-sm text-muted-foreground sm:p-4">
+            Assigning stock moves quantity from owned inventory to the partner. Sold quantity is tracked per line, and unsold quantity can be returned back into branch stock later.
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button

@@ -198,6 +198,9 @@ export function UserForm({
         submitError={submitError}
         showValidationSummary={form.formState.submitCount > 0}
       />
+      <p className="text-sm text-muted-foreground">
+        Name is required. Add at least one login ID: email, username, or phone.
+      </p>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="user-role">Role</Label>
@@ -233,7 +236,7 @@ export function UserForm({
           <p className="text-xs text-destructive">{form.formState.errors.name?.message}</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="user-email">Email</Label>
+          <Label htmlFor="user-email">Email (optional)</Label>
           <Input
             id="user-email"
             type="email"
@@ -243,14 +246,14 @@ export function UserForm({
           <p className="text-xs text-destructive">{form.formState.errors.email?.message}</p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="user-username">Username</Label>
+          <Label htmlFor="user-username">Username (optional)</Label>
           <Input id="user-username" placeholder="jane.doe" {...form.register("username")} />
           <p className="text-xs text-destructive">
             {form.formState.errors.username?.message}
           </p>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="user-phone">Phone</Label>
+          <Label htmlFor="user-phone">Phone (optional)</Label>
           <Input id="user-phone" placeholder="+254700000000" {...form.register("phone")} />
           <p className="text-xs text-destructive">{form.formState.errors.phone?.message}</p>
         </div>

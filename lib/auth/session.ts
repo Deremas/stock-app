@@ -12,11 +12,15 @@ import {
   sortBranchesByActive,
 } from "@/lib/branch-access";
 import type { AppRole } from "@/lib/rbac";
+import { getUserLoginLabel } from "@/lib/user-login";
 
 type SessionUser = {
   id: string;
   name: string;
   username?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  displayUsername?: string | null;
   displayName?: string | null;
   role?: string | null;
   isActive?: boolean | null;
@@ -52,7 +56,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     return {
       id: user.id,
       name: user.displayName ?? user.name,
-      username: user.username ?? "user",
+      username: getUserLoginLabel(user),
       role,
       activeBranchId,
       branches: sortBranchesByActive(assignedBranches, activeBranchId),

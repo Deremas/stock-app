@@ -47,6 +47,7 @@ export type SaleFormOptions = {
   products: ProductOption[];
   branchStock: SaleBranchStockOption[];
   ownedBatches: OwnedStockBatchOption[];
+  accounts: FinanceAccountOption[];
 };
 
 export type TransferFormOptions = {
@@ -83,6 +84,8 @@ export type FinanceAccountOption = {
   type: "CASH" | "BANK";
   branchId: string | null;
   branchName: string | null;
+  bankName: string | null;
+  accountNumber: string | null;
 };
 
 export type OutstandingSaleOption = {
@@ -121,6 +124,7 @@ export type SupplierPaymentFormOptions = {
 
 export type FinanceAccountFormOptions = {
   branches: BranchOption[];
+  cashBranchIds: string[];
 };
 
 export type CashTransferAccountOption = FinanceAccountOption & {
@@ -147,10 +151,66 @@ export type OutstandingSellerBalanceOption = {
   amountDue: number;
 };
 
+export type SellerSettlementLineOption = {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  branchId: string;
+  branchName: string;
+  productName: string;
+  saleNumber: string;
+  soldAt: string;
+  quantity: number;
+  amountDue: number;
+};
+
 export type SellerSettlementFormOptions = {
   sellers: NamedOption[];
   accounts: FinanceAccountOption[];
   outstandingBalances: OutstandingSellerBalanceOption[];
+  lines: SellerSettlementLineOption[];
+};
+
+export type SellerCollectionLineOption = {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  branchId: string;
+  branchName: string;
+  productId: string;
+  productName: string;
+  saleNumber: string;
+  soldAt: string;
+  quantity: number;
+  amountDue: number;
+};
+
+export type SellerCollectionFormOptions = {
+  sellers: NamedOption[];
+  accounts: FinanceAccountOption[];
+  lines: SellerCollectionLineOption[];
+};
+
+export type SellerReturnLineDirection = "TO_PARTNER" | "BACK_TO_BRANCH";
+
+export type SellerReturnLineOption = {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  branchId: string;
+  branchName: string;
+  productId: string;
+  productName: string;
+  sourceLabel: string;
+  sourceDate: string;
+  availableQty: number;
+  direction: SellerReturnLineDirection;
+};
+
+export type SellerReturnFormOptions = {
+  branches: BranchOption[];
+  sellers: NamedOption[];
+  lines: SellerReturnLineOption[];
 };
 
 export type TopProductCardItem = {
@@ -290,8 +350,10 @@ export type SellerRow = {
   id: string;
   fullName: string;
   phone: string;
-  onHandQty: number;
+  receivedOnHandQty: number;
+  assignedOutQty: number;
   payableAmount: number;
+  receivableAmount: number;
   lastIntakeAt: string;
   status: "ACTIVE" | "INACTIVE";
 };

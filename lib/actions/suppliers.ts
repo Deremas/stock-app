@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getActionActor, getActionErrorMessage, normalizeOptionalString } from "@/lib/actions/common";
+import {
+  getActionActorByPermission,
+  getActionErrorMessage,
+  normalizeOptionalString,
+} from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
 import { supplierCreateSchema, type SupplierCreateFormInput } from "@/lib/validation/supplier";
 
@@ -18,7 +22,7 @@ type CreateSupplierActionResult = {
 export async function createSupplierAction(
   input: SupplierCreateFormInput,
 ): Promise<CreateSupplierActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("suppliers:manage");
 
   if (!actor) {
     return {

@@ -36,6 +36,7 @@ import {
 import {
   getSellerAssignedRows,
   getSellerAssignCandidateRows,
+  getSellerCollectionRows,
   getSellerIntakeRows,
   getSellerReturnRows,
   getSellerRows,
@@ -74,6 +75,7 @@ export type TablePageKey =
   | "sellersAssignedItems"
   | "sellersReturns"
   | "sellersSettlements"
+  | "sellersCollections"
   | "financeAccounts"
   | "financeCash"
   | "financeCashTransfers"
@@ -262,6 +264,8 @@ export async function getTablePageConfig(
           ...(filters.customerId ? { customerId: filters.customerId } : {}),
           ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         }),
       };
     case "salesList":
@@ -359,7 +363,7 @@ export async function getTablePageConfig(
         eyebrow: "Purchases",
         title: "Purchase List",
         description:
-          "Supplier purchase history with branch context, totals, and payable status.",
+          "Purchase history with branch context, optional supplier linkage, totals, and payable status.",
         actionLabel: "New purchase",
         actionHref: "/purchases/new",
         exportFileName: "purchase-list",
@@ -424,7 +428,7 @@ export async function getTablePageConfig(
         eyebrow: "Partners",
         title: "Partners",
         description:
-          "Partner list with current consignment stock exposure and open payables.",
+          "Partner list showing received-stock payables separately from assigned-stock receivables.",
         actionLabel: "New partner",
         exportFileName: "sellers",
         columns: [
@@ -432,8 +436,10 @@ export async function getTablePageConfig(
           { key: "phone", header: "Phone" },
           { key: "location", header: "Location" },
           { key: "note", header: "Note" },
-          { key: "onHandQty", header: "On Hand", type: "number" },
-          { key: "payableAmount", header: "Payable", type: "currency" },
+          { key: "receivedOnHandQty", header: "Received On Hand", type: "number" },
+          { key: "assignedOutQty", header: "Assigned Out", type: "number" },
+          { key: "payableAmount", header: "Received Payable", type: "currency" },
+          { key: "receivableAmount", header: "Assigned Receivable", type: "currency" },
           { key: "lastIntakeAt", header: "Last Intake", type: "dateTime" },
           { key: "status", header: "Status", type: "status" },
         ],
@@ -463,14 +469,16 @@ export async function getTablePageConfig(
         rows: await getSellerIntakeRows({
           ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         }),
       };
     case "sellersAssignItems":
       return {
-        eyebrow: "Sellers",
+        eyebrow: "Partners",
         title: "Assign Items",
         description:
-          "Available owned batches that can be issued to sellers with a seller price per assignment.",
+          "Available owned batches that can be issued to partners. Sold quantity is settled later, while unsold quantity can be returned into branch stock.",
         actionLabel: "New assignment",
         exportFileName: "seller-assign-items",
         columns: [
@@ -488,18 +496,18 @@ export async function getTablePageConfig(
       };
     case "sellersAssignedItems":
       return {
-        eyebrow: "Sellers",
+        eyebrow: "Partners",
         title: "Assigned Items",
         description:
-          "Assignment history showing issued, sold, returned, and remaining quantities.",
+          "Assignment history showing issued quantities, sold quantities, returned-to-stock quantities, and what is still out with the partner.",
         exportFileName: "seller-assigned-items",
         columns: [
           { key: "assignmentNumber", header: "Assignment No." },
-          { key: "seller", header: "Seller" },
+          { key: "seller", header: "Partner" },
           { key: "branch", header: "Branch" },
           { key: "product", header: "Product" },
           { key: "sourceBatch", header: "Source Batch" },
-          { key: "assignedPrice", header: "Seller Price", type: "currency" },
+          { key: "assignedPrice", header: "Partner Pays", type: "currency" },
           { key: "unitCost", header: "Buying Price", type: "currency" },
           { key: "assignedQty", header: "Assigned", type: "number" },
           { key: "soldQty", header: "Sold", type: "number" },
@@ -515,25 +523,29 @@ export async function getTablePageConfig(
       };
     case "sellersReturns":
       return {
-        eyebrow: "Sellers",
+        eyebrow: "Partners",
         title: "Returns",
         description:
-          "Posted returns of unsold seller items back to the original owner.",
+          "Posted returns of unsold received items back to the partner, and unsold assigned items back into branch stock.",
         actionLabel: "Record return",
         exportFileName: "seller-returns",
         columns: [
           { key: "returnNumber", header: "Return No." },
-          { key: "seller", header: "Seller" },
+          { key: "seller", header: "Partner" },
           { key: "branch", header: "Branch" },
           { key: "product", header: "Product" },
+          { key: "flow", header: "Flow", type: "status" },
+          { key: "sourceRef", header: "Source Ref" },
           { key: "quantity", header: "Qty", type: "number" },
-          { key: "bringingDate", header: "Bringing Date", type: "dateTime" },
+          { key: "sourceDate", header: "Source Date", type: "dateTime" },
           { key: "returnDate", header: "Return Date", type: "dateTime" },
           { key: "status", header: "Status", type: "status" },
         ],
         rows: await getSellerReturnRows({
           ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         }),
       };
     case "sellersSettlements":
@@ -541,7 +553,7 @@ export async function getTablePageConfig(
         eyebrow: "Partners",
         title: "Pay Partners",
         description:
-          "Partner payable settlements with payment account traceability.",
+          "Pay exact sold received-partner lines with payment-account traceability. Assigned-from-us items are collected separately.",
         actionLabel: "New payment",
         exportFileName: "seller-settlements",
         columns: [
@@ -550,6 +562,7 @@ export async function getTablePageConfig(
           { key: "branch", header: "Branch" },
           { key: "paymentMethod", header: "Method", type: "status" },
           { key: "account", header: "Account" },
+          { key: "appliedTo", header: "Applied To" },
           { key: "amount", header: "Amount", type: "currency" },
           { key: "settledAt", header: "Settled At", type: "dateTime" },
           { key: "status", header: "Status", type: "status" },
@@ -557,6 +570,34 @@ export async function getTablePageConfig(
         rows: await getSellerSettlementRows({
           ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
+        }),
+      };
+    case "sellersCollections":
+      return {
+        eyebrow: "Partners",
+        title: "Collect From Partners",
+        description:
+          "Receive cash or bank collection for sold items previously assigned from branch stock.",
+        actionLabel: "New collection",
+        exportFileName: "seller-collections",
+        columns: [
+          { key: "collectionNumber", header: "Collection No." },
+          { key: "seller", header: "Partner" },
+          { key: "branch", header: "Branch" },
+          { key: "paymentMethod", header: "Method", type: "status" },
+          { key: "account", header: "Account" },
+          { key: "appliedTo", header: "Applied To" },
+          { key: "amount", header: "Amount", type: "currency" },
+          { key: "collectedAt", header: "Collected At", type: "dateTime" },
+          { key: "status", header: "Status", type: "status" },
+        ],
+        rows: await getSellerCollectionRows({
+          ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
+          ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
+          ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
         }),
       };
     case "financeAccounts":
@@ -695,15 +736,17 @@ export async function getTablePageConfig(
         eyebrow: "Reports",
         title: "Partner Exposure",
         description:
-          "Open partner stock exposure and unpaid balances grouped per partner.",
+          "Open received-stock quantities, assigned-out quantities, unpaid partner payables, and uncollected partner receivables grouped per partner, with row actions to drill into each partner history.",
         exportFileName: "partner-exposure",
         columns: [
           { key: "fullName", header: "Partner" },
           { key: "phone", header: "Phone" },
           { key: "location", header: "Location" },
           { key: "note", header: "Note" },
-          { key: "onHandQty", header: "Not Returned Qty", type: "number" },
-          { key: "payableAmount", header: "Unpaid Amount", type: "currency" },
+          { key: "receivedOnHandQty", header: "Received On Hand", type: "number" },
+          { key: "assignedOutQty", header: "Assigned Out", type: "number" },
+          { key: "payableAmount", header: "Unpaid Payable", type: "currency" },
+          { key: "receivableAmount", header: "Uncollected Receivable", type: "currency" },
           { key: "lastIntakeAt", header: "Last Intake", type: "dateTime" },
           { key: "status", header: "Status", type: "status" },
         ],
@@ -739,7 +782,7 @@ export async function getTablePageConfig(
         exportFileName: "users",
         columns: [
           { key: "name", header: "Name" },
-          { key: "username", header: "Username" },
+          { key: "username", header: "Login ID" },
           { key: "role", header: "Role", type: "status" },
           { key: "defaultBranch", header: "Default Branch" },
           { key: "branches", header: "Assigned Branches" },

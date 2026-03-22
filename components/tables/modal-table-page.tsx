@@ -65,6 +65,7 @@ export function ModalTablePage({
           <DataTable
             columns={config.columns}
             data={config.rows}
+            exportTitle={config.title}
             {...(config.exportFileName
               ? { exportFileName: config.exportFileName }
               : {})}

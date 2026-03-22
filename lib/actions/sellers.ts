@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { randomUUID } from "crypto";
 
 import {
@@ -10,7 +11,7 @@ import {
 import type { ActionResult } from "@/lib/actions/common";
 import {
   createDocumentNumber,
-  getActionActor,
+  getActionActorByPermission,
   getActionErrorMessage,
   normalizeOptionalString,
   parseInputDate,
@@ -40,7 +41,7 @@ function createPartnerItemSku(itemName: string) {
 export async function createSellerIntakeAction(
   input: SellerIntakeFormInput,
 ): Promise<ActionResult> {
-  const actor = await getActionActor(["ADMIN", "SALES"]);
+  const actor = await getActionActorByPermission("sellers:manage");
 
   if (!actor) {
     return {
@@ -223,6 +224,18 @@ export async function createSellerIntakeAction(
 
       return intake.intakeNumber;
     });
+
+    revalidatePath("/sellers/list");
+    revalidatePath("/sellers/intake-records");
+    revalidatePath("/sellers/new-intake");
+    revalidatePath("/reports/sellers");
+    revalidatePath("/inventory/stock-overview");
+    revalidatePath("/inventory/stock-movements");
+    revalidatePath("/inventory/low-stock");
+    revalidatePath("/inventory/out-of-stock");
+    revalidatePath("/inventory/alert-records");
+    revalidatePath("/dashboard");
+    revalidatePath("/sales/daily-check");
 
     return {
       success: true,

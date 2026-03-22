@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createCashTransferAction } from "@/lib/actions/cash-transfers";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { CashTransferFormOptions } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -197,7 +198,7 @@ export function CashTransferForm({
               <Select id="cash-transfer-from" {...form.register("fromAccountId")}>
                 {cashAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name} | {formatCurrency(account.balance)}
+                    {formatFinanceAccountLabel(account)} | {formatCurrency(account.balance)}
                   </option>
                 ))}
               </Select>
@@ -210,8 +211,7 @@ export function CashTransferForm({
               <Select id="cash-transfer-to" {...form.register("toAccountId")}>
                 {bankAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name}
-                    {account.branchName ? ` | ${account.branchName}` : ""}
+                    {formatFinanceAccountLabel(account)}
                   </option>
                 ))}
               </Select>

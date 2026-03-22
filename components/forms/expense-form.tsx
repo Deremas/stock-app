@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createExpenseAction } from "@/lib/actions/expenses";
+import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { ExpenseFormOptions } from "@/lib/types";
 import {
   expenseSchema,
@@ -153,7 +154,7 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
               <Select id="expense-account" {...form.register("financeAccountId")}>
                 {availableAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
-                    {account.name} | {account.type}
+                    {formatFinanceAccountLabel(account)}
                   </option>
                 ))}
               </Select>

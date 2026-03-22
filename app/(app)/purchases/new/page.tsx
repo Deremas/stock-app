@@ -18,7 +18,7 @@ export default async function NewPurchasePage({ searchParams }: NewPurchasePageP
       <PageHeader
         eyebrow="Purchases"
         title="New Purchase"
-        description="Capture supplier purchases that increase owned stock and establish payable balances."
+        description="Capture purchases that increase owned stock. Supplier is optional for fully paid direct purchases, and required for payable tracking."
       />
       <PurchaseForm
         options={options}

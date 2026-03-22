@@ -62,6 +62,7 @@ export default async function Page({ searchParams }: StockOverviewPageProps) {
           <DataTable
             columns={config.columns}
             data={config.rows}
+            exportTitle={config.title}
             {...(config.exportFileName
               ? { exportFileName: config.exportFileName }
               : {})}

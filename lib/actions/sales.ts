@@ -23,6 +23,7 @@ import {
   toDecimal,
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import {
   createAuditLog,
   createStockSnapshot,
@@ -293,7 +294,16 @@ export async function createSaleAction(
   }
 
   const customerId = normalizeOptionalString(parsed.data.customerId);
+  const financeAccountId = normalizeOptionalString(parsed.data.financeAccountId);
   const note = normalizeOptionalString(parsed.data.note);
+  const requiresFinanceAccount = parsed.data.paymentMethod !== "CREDIT";
+
+  if (requiresFinanceAccount && !hasPermission(actor.role, "accounts:use")) {
+    return {
+      success: false,
+      message: "You are not allowed to use finance accounts for paid sales.",
+    };
+  }
 
   try {
     const saleReference = await prisma.$transaction(async (tx) => {
@@ -313,6 +323,46 @@ export async function createSaleAction(
 
       if (!branch) {
         throw new Error("You do not have access to the selected branch.");
+      }
+
+      const financeAccount = financeAccountId
+        ? await tx.financeAccount.findFirst({
+            where: {
+              id: financeAccountId,
+              isActive: true,
+            },
+            select: {
+              id: true,
+              name: true,
+              branchId: true,
+              type: true,
+            },
+          })
+        : null;
+
+      if (requiresFinanceAccount && !financeAccountId) {
+        throw new Error("Select the finance account that received the sale.");
+      }
+
+      if (financeAccountId && !financeAccount) {
+        throw new Error("Selected finance account was not found.");
+      }
+
+      if (
+        requiresFinanceAccount &&
+        financeAccount &&
+        financeAccount.branchId &&
+        financeAccount.branchId !== branch.id
+      ) {
+        throw new Error("Finance account must belong to the same branch as the sale.");
+      }
+
+      if (parsed.data.paymentMethod === "CASH" && financeAccount?.type !== "CASH") {
+        throw new Error("Cash sales must be posted into the branch cash account.");
+      }
+
+      if (parsed.data.paymentMethod === "BANK" && financeAccount?.type !== "BANK") {
+        throw new Error("Bank sales must be posted into a bank account.");
       }
 
       if (customerId) {
@@ -518,6 +568,7 @@ export async function createSaleAction(
           data: {
             entryDate: soldAt,
             branchId: branch.id,
+            financeAccountId: financeAccount?.id ?? null,
             direction: LedgerDirection.DEBIT,
             amount: toDecimal(subtotal),
             entryType: LedgerEntryType.SALE,
@@ -540,6 +591,8 @@ export async function createSaleAction(
           customerId: customerId ?? null,
           total: subtotal,
           paymentMethod: parsed.data.paymentMethod,
+          financeAccountId: financeAccount?.id ?? null,
+          financeAccountName: financeAccount?.name ?? null,
           itemCount: parsed.data.items.length,
         },
       });
@@ -549,9 +602,16 @@ export async function createSaleAction(
 
     revalidatePath("/sales/new");
     revalidatePath("/sales/sales-list");
+    revalidatePath("/sales/daily-check");
     revalidatePath("/inventory/stock-overview");
+    revalidatePath("/sellers/list");
     revalidatePath("/sellers/assigned-items");
+    revalidatePath("/sellers/collections");
     revalidatePath("/sellers/settlements");
+    revalidatePath("/reports/sellers");
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
+    revalidatePath("/finance/ledger");
     revalidatePath("/dashboard");
 
     return {
