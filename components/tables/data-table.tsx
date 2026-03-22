@@ -117,6 +117,34 @@ export function DataTable({
             );
           }
 
+          if (column.type === "multiline") {
+            const lines = String(rawValue)
+              .split("\n")
+              .map((line) => line.trim())
+              .filter(Boolean);
+
+            return (
+              <div className="space-y-1.5 py-0.5">
+                {lines.map((line, index) => {
+                  const isSummaryLine = index === 0;
+
+                  return (
+                    <div
+                      key={`${column.key}-${index}-${line}`}
+                      className={
+                        isSummaryLine
+                          ? "rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-semibold text-foreground"
+                          : "rounded-xl border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground"
+                      }
+                    >
+                      {line}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+
           return String(rawValue);
         },
       })),

@@ -28,6 +28,12 @@
   --sidebar-foreground: 214 40% 20%;
   --sidebar-accent: 196 89% 28%;
   --sidebar-border: 208 28% 85%;
+  --topbar-surface: 196 54% 95%;
+  --topbar-surface-strong: 0 0% 100%;
+  --topbar-foreground: 214 48% 18%;
+  --topbar-muted: 213 18% 39%;
+  --topbar-border: 200 34% 78%;
+  --topbar-accent: 196 89% 28%;
   --font-sans: "Segoe UI Variable Text", "Segoe UI", "Trebuchet MS", sans-serif;
 }
 
@@ -56,6 +62,12 @@
   --sidebar-foreground: 210 28% 94%;
   --sidebar-accent: 194 88% 48%;
   --sidebar-border: 217 18% 24%;
+  --topbar-surface: 204 36% 16%;
+  --topbar-surface-strong: 213 32% 20%;
+  --topbar-foreground: 210 36% 96%;
+  --topbar-muted: 209 18% 74%;
+  --topbar-border: 204 28% 34%;
+  --topbar-accent: 194 88% 48%;
 }
 
 * {

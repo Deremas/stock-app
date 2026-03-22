@@ -43,6 +43,9 @@ export function AppHeader({
       ? `${activeBranch.code} - ${activeBranch.name}`
       : activeBranch.name
     : "";
+  const topbarControlClass =
+    "border-[hsl(var(--topbar-border)/0.9)] bg-[hsl(var(--topbar-surface-strong)/0.94)] text-[hsl(var(--topbar-foreground))] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-[hsl(var(--topbar-accent)/0.34)] hover:bg-[hsl(var(--topbar-surface-strong))] dark:shadow-[0_16px_32px_rgba(2,8,23,0.34)]";
+  const topbarMutedTextClass = "text-[hsl(var(--topbar-muted))]";
 
   useEffect(() => {
     setSelectedBranchId(user.activeBranchId);
@@ -52,18 +55,18 @@ export function AppHeader({
     <div className="min-w-0 max-w-[8.75rem] sm:max-w-[20rem]">
       <Select
         aria-label="Switch active branch"
-        className="h-10 w-full min-w-0 rounded-full border-border/70 bg-card px-3 text-sm font-medium shadow-sm sm:h-auto sm:rounded-xl sm:py-2"
+        className={`h-10 w-full min-w-0 rounded-full px-3 text-sm font-medium sm:h-auto sm:rounded-2xl sm:py-2 ${topbarControlClass} [&_svg]:text-[hsl(var(--topbar-muted))]`}
         disabled={isBranchPending || user.branches.length <= 1}
         triggerLabel={
           <>
             <span className="block truncate text-sm font-medium sm:hidden">{activeBranch.name}</span>
             <span className="hidden min-w-0 items-center gap-2 sm:flex">
-              <Building2 className="h-4 w-4 shrink-0 text-primary" />
+              <Building2 className="h-4 w-4 shrink-0 text-[hsl(var(--topbar-accent))]" />
               <span className="min-w-0">
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <span className={`block text-[10px] font-semibold uppercase tracking-[0.18em] ${topbarMutedTextClass}`}>
                   Active Branch
                 </span>
-                <span className="block truncate text-sm font-medium text-foreground">
+                <span className="block truncate text-sm font-medium text-[hsl(var(--topbar-foreground))]">
                   {activeBranchLabel}
                 </span>
               </span>
@@ -109,7 +112,7 @@ export function AppHeader({
         asChild
         size="sm"
         variant="outline"
-        className="h-10 rounded-full border-border/70 bg-card px-3 shadow-sm"
+        className={`h-10 rounded-full px-3 ${topbarControlClass}`}
       >
         <Link href="/admin/branches" prefetch={false}>
           Create first branch
@@ -117,7 +120,9 @@ export function AppHeader({
       </Button>
     )
   ) : (
-    <div className="rounded-full border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+    <div
+      className={`rounded-full border border-dashed px-3 py-2 text-sm ${topbarControlClass} ${topbarMutedTextClass}`}
+    >
       No branch created yet
     </div>
   );
@@ -135,7 +140,7 @@ export function AppHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 max-w-full shrink-0 overflow-x-clip border-b border-border/70 bg-background/94 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.05)] backdrop-blur supports-[backdrop-filter]:bg-background/86 dark:shadow-[0_16px_36px_rgba(2,8,23,0.42)]">
+    <header className="sticky top-0 z-30 max-w-full shrink-0 overflow-x-clip border-b border-[hsl(var(--topbar-border)/0.86)] bg-[linear-gradient(135deg,hsl(var(--topbar-surface)/0.96),hsl(var(--topbar-surface-strong)/0.92))] px-4 py-3 text-[hsl(var(--topbar-foreground))] shadow-[0_14px_32px_rgba(14,116,144,0.12)] backdrop-blur supports-[backdrop-filter]:bg-[linear-gradient(135deg,hsl(var(--topbar-surface)/0.9),hsl(var(--topbar-surface-strong)/0.84))] dark:shadow-[0_20px_40px_rgba(2,8,23,0.4)]">
       <div className="mx-auto w-full min-w-0 max-w-[1360px]">
         <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -143,6 +148,7 @@ export function AppHeader({
               type="button"
               variant="outline"
               size="icon"
+              className={`h-10 w-10 rounded-2xl ${topbarControlClass}`}
               onClick={onMenuToggle}
               aria-label="Toggle sidebar"
             >
@@ -150,7 +156,7 @@ export function AppHeader({
             </Button>
           </div>
           <div className="min-w-0 text-center">
-            <h1 className="truncate text-sm font-semibold tracking-tight sm:text-lg">
+            <h1 className="truncate text-sm font-semibold tracking-tight text-[hsl(var(--topbar-foreground))] sm:text-lg">
               {pageTitle}
             </h1>
           </div>
@@ -161,14 +167,16 @@ export function AppHeader({
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex max-w-full items-center gap-3 rounded-full border border-border/70 bg-card px-3 py-2 shadow-sm transition hover:border-sidebar-accent/25 hover:bg-accent/80"
+                  className={`flex max-w-full items-center gap-3 rounded-full px-3 py-2 ${topbarControlClass}`}
                 >
                   <Avatar name={user.name} />
                   <div className="hidden text-left sm:block">
-                    <p className="max-w-[8rem] truncate text-sm font-medium">{user.name}</p>
-                    <p className="text-xs text-muted-foreground">{user.role}</p>
+                    <p className="max-w-[8rem] truncate text-sm font-medium text-[hsl(var(--topbar-foreground))]">
+                      {user.name}
+                    </p>
+                    <p className={`text-xs ${topbarMutedTextClass}`}>{user.role}</p>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <ChevronDown className={`h-4 w-4 ${topbarMutedTextClass}`} />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

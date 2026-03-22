@@ -15,11 +15,12 @@ function getHeaderWidth(header: string) {
     (max, word) => Math.max(max, word.length),
     0,
   );
+  const controlAllowance = 68;
 
   return Math.max(
-    92,
-    Math.min(210, normalized.length * 8 + 38),
-    Math.min(210, longestWord * 10 + 42),
+    108,
+    Math.min(232, normalized.length * 8 + controlAllowance),
+    Math.min(232, longestWord * 10 + controlAllowance),
   );
 }
 
@@ -36,7 +37,7 @@ function ensureHeaderFits(
   return {
     size: Math.max(sizing.size, headerWidth),
     minSize: Math.max(sizing.minSize, headerWidth),
-    maxSize: Math.max(sizing.maxSize, headerWidth + 28),
+    maxSize: Math.max(sizing.maxSize, headerWidth + 36),
   };
 }
 
@@ -77,19 +78,27 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
     header.includes("count") ||
     header.includes("threshold");
 
+  if (column.type === "multiline") {
+    return ensureHeaderFits(column.header, {
+      size: key.includes("batch") ? 340 : 280,
+      minSize: key.includes("batch") ? 280 : 220,
+      maxSize: key.includes("batch") ? 460 : 360,
+    });
+  }
+
   if (column.type === "number") {
     return ensureHeaderFits(column.header, {
-      size: isQuantityField ? 96 : 112,
-      minSize: isQuantityField ? 82 : 94,
-      maxSize: isQuantityField ? 118 : 136,
+      size: isQuantityField ? 144 : 124,
+      minSize: isQuantityField ? 132 : 108,
+      maxSize: isQuantityField ? 184 : 160,
     });
   }
 
   if (column.type === "currency") {
     return ensureHeaderFits(column.header, {
-      size: 122,
-      minSize: 106,
-      maxSize: 146,
+      size: 138,
+      minSize: 122,
+      maxSize: 176,
     });
   }
 
@@ -195,6 +204,7 @@ export const materialTableHeadCellSx = {
   borderBottom: `1px solid ${borderColor}`,
   fontWeight: 700,
   paddingBlock: "0.9rem",
+  paddingInline: "0.7rem",
   whiteSpace: "nowrap",
   overflow: "visible",
   textAlign: "center",
@@ -205,17 +215,30 @@ export const materialTableHeadCellSx = {
     overflow: "visible",
     justifyContent: "center",
     width: "100%",
+    minWidth: 0,
+    gap: "0.35rem",
+    alignItems: "center",
   },
   "& .Mui-TableHeadCell-Content-Wrapper": {
     overflow: "visible",
     textOverflow: "clip",
     textAlign: "center",
+    minWidth: 0,
   },
   "& .Mui-TableHeadCell-Content-Labels": {
     justifyContent: "center",
+    alignItems: "center",
+    gap: "0.25rem",
+    minWidth: 0,
   },
   "& .MuiTableSortLabel-root": {
     justifyContent: "center",
+    gap: "0.2rem",
+    minWidth: 0,
+  },
+  "& .Mui-TableHeadCell-Content-Actions": {
+    flex: "0 0 auto",
+    marginLeft: "0.15rem",
   },
   "& .MuiIconButton-root": {
     color: mutedTextColor,

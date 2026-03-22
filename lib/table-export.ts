@@ -45,6 +45,10 @@ export function formatTableExportValue(column: SimpleColumn, row: SimpleRow) {
     return toTitleCase(String(rawValue));
   }
 
+  if (column.type === "multiline") {
+    return String(rawValue).replaceAll("\n", " | ");
+  }
+
   return String(rawValue);
 }
 

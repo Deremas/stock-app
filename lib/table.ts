@@ -3,6 +3,7 @@ import type { MetricCard } from "@/lib/types";
 
 export type SimpleColumnType =
   | "text"
+  | "multiline"
   | "number"
   | "currency"
   | "dateTime"

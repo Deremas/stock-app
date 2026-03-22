@@ -112,27 +112,27 @@ export async function getStockOverviewRows(branchId?: string) {
     string,
     {
       count: number;
-      minSellingPrice: number;
-      maxSellingPrice: number;
+      lines: string[];
     }
   >();
 
   for (const batch of ownedBatches) {
     const key = `${batch.branchId}:${batch.productId}`;
     const existing = ownedBatchMap.get(key);
+    const batchLine = `${
+      batch.sourceType === "PURCHASE" ? batch.referenceNumber : `${batch.referenceNumber} from ${batch.sourceName}`
+    } | ${batch.remainingQuantity} qty | Buy ${formatCurrency(batch.unitCost)} | Sell ${formatCurrency(batch.sellingPrice)}`;
 
     if (!existing) {
       ownedBatchMap.set(key, {
         count: 1,
-        minSellingPrice: batch.sellingPrice,
-        maxSellingPrice: batch.sellingPrice,
+        lines: [batchLine],
       });
       continue;
     }
 
     existing.count += 1;
-    existing.minSellingPrice = Math.min(existing.minSellingPrice, batch.sellingPrice);
-    existing.maxSellingPrice = Math.max(existing.maxSellingPrice, batch.sellingPrice);
+    existing.lines.push(batchLine);
   }
 
   return rows.map(
@@ -173,14 +173,11 @@ export async function getStockOverviewRows(branchId?: string) {
         branch: row.branch,
         product: row.product,
         ownedBatches: batchSummary
-          ? `${batchSummary.count} batch${batchSummary.count === 1 ? "" : "es"} | ${
-              batchSummary.minSellingPrice === batchSummary.maxSellingPrice
-                ? formatCurrency(batchSummary.minSellingPrice)
-                : `${formatCurrency(batchSummary.minSellingPrice)} - ${formatCurrency(
-                    batchSummary.maxSellingPrice,
-                  )}`
-            }`
-          : "-",
+          ? [
+              `${row.ownedQty} total | ${batchSummary.count} batch${batchSummary.count === 1 ? "" : "es"}`,
+              ...batchSummary.lines,
+            ].join("\n")
+          : "No owned stock",
         ownedQty: row.ownedQty,
         sellerQty: row.sellerQty,
         assignedQty: row.assignedQty,

@@ -103,7 +103,7 @@ export function OwnedStockBatchDialog({
           ) : null}
           {batches.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              No remaining owned purchase batches are available for this item in this branch.
+              No remaining owned batches are available for this item in this branch.
             </div>
           ) : (
             batches.map((batch) => {

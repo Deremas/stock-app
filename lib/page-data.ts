@@ -138,20 +138,20 @@ export async function getTablePageConfig(
         ],
         rows: await getProductRows(activeBranchId),
       };
-    case "inventoryStockOverview":
-      return {
-        eyebrow: "Inventory",
-        title: "Current Stock",
-        description:
-          "Live stock balances by branch. Use batch details here to manage remaining owned lot prices without changing the item master.",
-        exportFileName: "current-stock",
-        columns: [
-          { key: "branch", header: "Branch" },
-          { key: "product", header: "Item" },
-          { key: "ownedBatches", header: "Owned Batches" },
-          { key: "ownedQty", header: "Owned Qty", type: "number" },
-          { key: "sellerQty", header: "Partner Qty", type: "number" },
-          { key: "assignedQty", header: "Assigned Qty", type: "number" },
+      case "inventoryStockOverview":
+        return {
+          eyebrow: "Inventory",
+          title: "Current Stock",
+          description:
+            "Live stock balances by branch with remaining owned batch quantities and prices shown inline for faster stock review.",
+          exportFileName: "current-stock",
+          columns: [
+            { key: "branch", header: "Branch" },
+            { key: "product", header: "Item" },
+            { key: "ownedBatches", header: "Batch Details", type: "multiline" },
+            { key: "ownedQty", header: "Owned Qty", type: "number" },
+            { key: "sellerQty", header: "Partner Qty", type: "number" },
+            { key: "assignedQty", header: "Assigned Qty", type: "number" },
           { key: "totalQty", header: "Total Qty", type: "number" },
           { key: "stockValue", header: "Value", type: "currency" },
         ],
