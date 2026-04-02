@@ -5,6 +5,7 @@ import type { BranchRow, MetricCard } from "@/lib/types";
 import { getUserLoginLabel } from "@/lib/user-login";
 import { ARCHIVED_USER_USERNAME_PREFIX } from "@/lib/user-archive";
 import { sumRows, toNumber } from "@/lib/data-runtime-utils";
+import { formatCurrency } from "@/lib/utils";
 import { startOfDay, startOfMonth, startOfWeek } from "date-fns";
 
 type PurchaseFilters = {
@@ -90,21 +91,52 @@ export async function getPurchaseRows(filters: PurchaseFilters = {}) {
           name: true,
         },
       },
+      items: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          quantity: true,
+          unitCost: true,
+          sellingPrice: true,
+          lineTotal: true,
+          product: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
     },
   });
 
   return purchases.map(
-    (purchase) =>
-      ({
+    (purchase) => {
+      const totalQuantity = purchase.items.reduce(
+        (sum, item) => sum + Number(item.quantity ?? 0),
+        0,
+      );
+      const itemLines =
+        purchase.items.length > 0
+          ? [
+              `${purchase.items.length} line${purchase.items.length === 1 ? "" : "s"} | ${totalQuantity} qty`,
+              ...purchase.items.map(
+                (item) =>
+                  `${item.product.name} | ${item.quantity} qty | Buy ${formatCurrency(toNumber(item.unitCost))} | Sell ${formatCurrency(toNumber(item.sellingPrice))} | Line ${formatCurrency(toNumber(item.lineTotal))}`,
+              ),
+            ].join("\n")
+          : "No line items";
+
+      return {
         id: purchase.id,
         purchaseNumber: purchase.purchaseNumber,
         branch: purchase.branch.name,
         supplier: purchase.supplier?.name ?? "No supplier",
+        itemsPurchased: itemLines,
         total: toNumber(purchase.total),
         amountDue: toNumber(purchase.amountDue),
         paymentStatus: purchase.paymentStatus,
         purchasedAt: purchase.purchasedAt.toISOString(),
-      }) satisfies SimpleRow,
+      } satisfies SimpleRow;
+    },
   );
 }
 

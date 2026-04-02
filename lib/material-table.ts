@@ -79,10 +79,12 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
     header.includes("threshold");
 
   if (column.type === "multiline") {
+    const isDetailList = key.includes("item") || key.includes("detail");
+
     return ensureHeaderFits(column.header, {
-      size: key.includes("batch") ? 340 : 280,
-      minSize: key.includes("batch") ? 280 : 220,
-      maxSize: key.includes("batch") ? 460 : 360,
+      size: key.includes("batch") ? 340 : isDetailList ? 380 : 280,
+      minSize: key.includes("batch") ? 280 : isDetailList ? 320 : 220,
+      maxSize: key.includes("batch") ? 460 : isDetailList ? 520 : 360,
     });
   }
 
@@ -246,6 +248,9 @@ export const materialTableHeadCellSx = {
   "& .MuiTableSortLabel-icon, & .MuiSvgIcon-root": {
     color: mutedTextColor,
   },
+  '&[data-pinned="left"], &[data-pinned="right"], &[data-pinned="true"]': {
+    backgroundColor: surfaceColor,
+  },
 };
 
 export const materialTableBodyCellSx = {
@@ -253,6 +258,9 @@ export const materialTableBodyCellSx = {
   color: textColor,
   borderBottom: `1px solid ${borderColor}`,
   paddingBlock: "0.85rem",
+  '&[data-pinned="left"], &[data-pinned="right"], &[data-pinned="true"]': {
+    backgroundColor: surfaceColor,
+  },
 };
 
 export const materialTableBodyRowSx = {

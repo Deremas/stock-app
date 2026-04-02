@@ -155,6 +155,37 @@ export function DataTable({
     () => data.some((row) => (row.__actions?.length ?? 0) > 0),
     [data],
   );
+  const rowActionsLayout = useMemo(() => {
+    const actionGroups = data.map((row) => row.__actions ?? []);
+    const maxActionCount = actionGroups.reduce(
+      (max, actions) => Math.max(max, actions.length),
+      0,
+    );
+    const longestLabelLength = actionGroups.reduce(
+      (max, actions) =>
+        Math.max(
+          max,
+          ...actions.map((action) => action.label.trim().length),
+          0,
+        ),
+      0,
+    );
+    const size = Math.max(
+      300,
+      Math.min(620, maxActionCount * 70 + (longestLabelLength >= 10 ? 70 : 40)),
+    );
+
+    return {
+      size,
+      minSize: Math.max(240, size - 80),
+      maxSize: Math.min(680, size + 60),
+      minWidth: `${Math.max(240, size - 50)}px`,
+    };
+  }, [data]);
+  const pinnedLeftColumns = useMemo(
+    () => (columns[0]?.key ? [columns[0].key] : []),
+    [columns],
+  );
 
   const table = useMaterialReactTable({
     columns: mrtColumns,
@@ -164,6 +195,7 @@ export function DataTable({
     enableFullScreenToggle: true,
     enableColumnFilters: true,
     enableColumnActions: true,
+    enableColumnPinning: true,
     enableHiding: true,
     enableRowActions: hasRowActions,
     enableStickyHeader: true,
@@ -171,6 +203,10 @@ export function DataTable({
     initialState: {
       density: "compact",
       ...(routeSearch ? { showGlobalFilter: true } : {}),
+      columnPinning: {
+        left: pinnedLeftColumns,
+        ...(hasRowActions ? { right: ["mrt-row-actions"] } : {}),
+      },
       pagination: {
         pageIndex: 0,
         pageSize: 20,
@@ -181,18 +217,18 @@ export function DataTable({
     },
     onGlobalFilterChange: setGlobalFilter,
     positionActionsColumn: "last",
-    ...(hasRowActions
-      ? {
-          displayColumnDefOptions: {
-            "mrt-row-actions": {
-              header: "Actions",
-              size: 300,
-              minSize: 240,
-              maxSize: 340,
-            },
-          },
-        }
-      : {}),
+        ...(hasRowActions
+          ? {
+              displayColumnDefOptions: {
+                "mrt-row-actions": {
+                  header: "Actions",
+                  size: rowActionsLayout.size,
+                  minSize: rowActionsLayout.minSize,
+                  maxSize: rowActionsLayout.maxSize,
+                },
+              },
+            }
+          : {}),
     muiTablePaperProps: {
       elevation: 0,
       sx: {
@@ -250,7 +286,10 @@ export function DataTable({
       }
 
       return (
-        <div className="flex min-w-[240px] flex-wrap items-center gap-2 py-1">
+        <div
+          className="flex flex-wrap items-center gap-1.5 py-1"
+          style={{ minWidth: rowActionsLayout.minWidth }}
+        >
           {actions.map((action) => {
             const Icon = getIcon(action.icon);
 
@@ -260,7 +299,7 @@ export function DataTable({
                 asChild
                 size="sm"
                 variant={action.variant ?? "outline"}
-                className="h-8 rounded-full px-3"
+                className="h-8 whitespace-nowrap rounded-full px-2.5 text-[13px]"
               >
                 <a href={action.href}>
                   <Icon className="h-4 w-4" />

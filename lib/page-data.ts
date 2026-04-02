@@ -371,6 +371,7 @@ export async function getTablePageConfig(
           { key: "purchaseNumber", header: "Purchase No." },
           { key: "branch", header: "Branch" },
           { key: "supplier", header: "Supplier" },
+          { key: "itemsPurchased", header: "Items Purchased", type: "multiline" },
           { key: "total", header: "Total", type: "currency" },
           { key: "amountDue", header: "Amount Due", type: "currency" },
           { key: "paymentStatus", header: "Status", type: "status" },

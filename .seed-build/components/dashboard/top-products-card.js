@@ -1,0 +1,6 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
+export function TopProductsCard({ products }) {
+    return (_jsxs(Card, { children: [_jsxs(CardHeader, { children: [_jsx(CardTitle, { children: "Top Value Items" }), _jsx(CardDescription, { children: "Items currently carrying the largest on-hand stock value." })] }), _jsx(CardContent, { className: "min-w-0 space-y-4", children: products.length === 0 ? (_jsx("p", { className: "text-sm text-muted-foreground", children: "No stock has been posted yet." })) : (products.map((product) => (_jsxs("div", { className: "flex min-w-0 flex-col gap-3 rounded-2xl border border-border/70 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4", children: [_jsxs("div", { className: "min-w-0", children: [_jsx("p", { className: "break-words text-sm font-medium", children: product.name }), _jsxs("p", { className: "text-xs text-muted-foreground", children: [product.currentStock, " pcs on hand"] })] }), _jsx("p", { className: "break-words text-sm font-semibold sm:text-right", children: formatCurrency(product.value) })] }, product.id)))) })] }));
+}

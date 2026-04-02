@@ -203,9 +203,44 @@ export function PurchaseForm({
     () => new Set(items.map((item) => item.productId).filter(Boolean)),
     [items],
   );
+  const productNameById = useMemo(
+    () => new Map(options.products.map((product) => [product.id, product.name])),
+    [options.products],
+  );
   const hasUnusedProducts = useMemo(
     () => options.products.some((product) => !selectedProductIds.has(product.id)),
     [options.products, selectedProductIds],
+  );
+  const purchaseSummaryItems = useMemo(
+    () =>
+      items
+        .map((item, index) => {
+          const quantity = Number(item.quantity || 0);
+          const unitCost = Number(item.unitCost || 0);
+          const sellingPrice = Number(item.sellingPrice || 0);
+          const productName = item.productId
+            ? productNameById.get(item.productId) ?? `Line ${index + 1}`
+            : `Line ${index + 1}`;
+
+          return {
+            id: `${index}-${item.productId || "empty"}`,
+            productName,
+            quantity,
+            unitCost,
+            sellingPrice,
+            lineTotal: quantity * unitCost,
+            hasSelection: Boolean(item.productId),
+          };
+        })
+        .filter(
+          (item) =>
+            item.hasSelection || item.unitCost > 0 || item.sellingPrice > 0,
+        ),
+    [items, productNameById],
+  );
+  const totalQuantity = purchaseSummaryItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
   );
   const effectiveAmountPaid =
     settlementMode === "UNPAID"
@@ -385,7 +420,7 @@ export function PurchaseForm({
   return (
     <>
       <form
-        className="grid gap-3 sm:gap-6 xl:grid-cols-[2fr_1fr]"
+        className="grid min-w-0 items-start gap-3 sm:gap-6 lg:grid-cols-[minmax(0,1.72fr)_minmax(320px,0.98fr)]"
         onChangeCapture={() => {
           if (submitError) {
             setSubmitError(null);
@@ -393,295 +428,349 @@ export function PurchaseForm({
         }}
         onSubmit={form.handleSubmit(onSubmit)}
       >
-        <Card>
-        <CardHeader className="p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>Purchase entry</CardTitle>
-            {!canSubmit ? (
-              <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-                Need branch and item.
-              </p>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 p-4 pt-0 sm:space-y-6 sm:p-6 sm:pt-0">
-          <FormFeedback
-            errors={form.formState.errors}
-            submitError={submitError}
-            showValidationSummary={form.formState.submitCount > 0}
-          />
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="branchId">Branch</Label>
-              <Select id="branchId" {...form.register("branchId")}>
-                {options.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.branchId?.message ? (
-                <p className="text-xs text-destructive">{form.formState.errors.branchId.message}</p>
+        <Card className="min-w-0">
+          <CardHeader className="p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>Purchase entry</CardTitle>
+              {!canSubmit ? (
+                <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+                  Need branch and item.
+                </p>
               ) : null}
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="supplierId">Supplier (optional)</Label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 text-primary"
-                  onClick={() => setSupplierDialogOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add supplier
-                </Button>
+          </CardHeader>
+          <CardContent className="space-y-4 p-4 pt-0 sm:space-y-6 sm:p-6 sm:pt-0">
+            <FormFeedback
+              errors={form.formState.errors}
+              submitError={submitError}
+              showValidationSummary={form.formState.submitCount > 0}
+            />
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="branchId">Branch</Label>
+                <Select id="branchId" {...form.register("branchId")}>
+                  {options.branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.code} - {branch.name}
+                    </option>
+                  ))}
+                </Select>
+                {form.formState.errors.branchId?.message ? (
+                  <p className="text-xs text-destructive">{form.formState.errors.branchId.message}</p>
+                ) : null}
               </div>
-              <Select id="supplierId" {...form.register("supplierId")}>
-                <option value="">Select supplier</option>
-                {supplierOptions.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Leave blank for a direct purchase paid now. Choose a supplier if this purchase
-                needs payable tracking or later settlement.
-              </p>
-              {form.formState.errors.supplierId?.message ? (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.supplierId.message}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="supplierId">Supplier (optional)</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-primary"
+                    onClick={() => setSupplierDialogOpen(true)}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add supplier
+                  </Button>
+                </div>
+                <Select id="supplierId" {...form.register("supplierId")}>
+                  <option value="">Select supplier</option>
+                  {supplierOptions.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank for a direct purchase paid now. Choose a supplier if this purchase
+                  needs payable tracking or later settlement.
                 </p>
-              ) : null}
+                {form.formState.errors.supplierId?.message ? (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.supplierId.message}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-          <div className="grid gap-3">
-            <div className="w-full max-w-[18rem] space-y-2 sm:max-w-[19rem]">
-              <Label htmlFor="purchasedAt">Purchase date</Label>
-              <Input id="purchasedAt" type="datetime-local" {...form.register("purchasedAt")} />
-              {form.formState.errors.purchasedAt?.message ? (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.purchasedAt.message}
-                </p>
-              ) : null}
+            <div className="grid gap-3">
+              <div className="w-full max-w-[18rem] space-y-2 sm:max-w-[19rem]">
+                <Label htmlFor="purchasedAt">Purchase date</Label>
+                <Input id="purchasedAt" type="datetime-local" {...form.register("purchasedAt")} />
+                {form.formState.errors.purchasedAt?.message ? (
+                  <p className="text-xs text-destructive">
+                    {form.formState.errors.purchasedAt.message}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Line items
-              </h3>
-            </div>
-            <div className="space-y-2.5 sm:space-y-4">
-              {fields.map((field, index) => (
-                <div
-                  key={field.id}
-                  className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
-                >
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
-                      Line {index + 1}
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,3.7fr)_minmax(88px,0.6fr)_minmax(124px,0.9fr)_minmax(136px,0.95fr)] lg:items-end">
-                    <div className="col-span-2 space-y-2 lg:col-span-1">
-                      <Label className="text-xs font-medium sm:text-sm">Item name</Label>
-                      <PurchaseItemPicker
-                        value={items[index]?.productId ?? ""}
-                        products={options.products}
-                        disabledProductIds={
-                          new Set(
-                            items
-                              .filter((_, itemIndex) => itemIndex !== index)
-                              .map((item) => item.productId)
-                              .filter(Boolean),
-                          )
-                        }
-                        onValueChange={(nextValue) =>
-                          form.setValue(`items.${index}.productId`, nextValue, {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          })
-                        }
-                      />
-                      {items.some(
-                        (item, itemIndex) =>
-                          itemIndex !== index &&
-                          item.productId &&
-                          item.productId === items[index]?.productId,
-                      ) ? (
-                        <p className="text-xs text-muted-foreground">
-                          This item is already added. Increase its quantity on the existing line instead.
-                        </p>
-                      ) : null}
-                      {form.formState.errors.items?.[index]?.productId?.message ? (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items[index]?.productId?.message}
-                        </p>
-                      ) : null}
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Line items
+                </h3>
+              </div>
+              <div className="space-y-2.5 sm:space-y-4">
+                {fields.map((field, index) => (
+                  <div
+                    key={field.id}
+                    className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                        Line {index + 1}
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium sm:text-sm">Qty</Label>
-                      <Input type="number" min={1} {...form.register(`items.${index}.quantity`)} />
-                      {form.formState.errors.items?.[index]?.quantity?.message ? (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items[index]?.quantity?.message}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-medium sm:text-sm">Buying Price</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        {...form.register(`items.${index}.unitCost`)}
-                      />
-                      {form.formState.errors.items?.[index]?.unitCost?.message ? (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items[index]?.unitCost?.message}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="col-span-2 space-y-2 lg:col-span-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label className="text-xs font-medium sm:text-sm">Selling Price</Label>
-                        {index > 0 ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => remove(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,3.7fr)_minmax(88px,0.6fr)_minmax(124px,0.9fr)_minmax(136px,0.95fr)] lg:items-end">
+                      <div className="col-span-2 space-y-2 lg:col-span-1">
+                        <Label className="text-xs font-medium sm:text-sm">Item name</Label>
+                        <PurchaseItemPicker
+                          value={items[index]?.productId ?? ""}
+                          products={options.products}
+                          disabledProductIds={
+                            new Set(
+                              items
+                                .filter((_, itemIndex) => itemIndex !== index)
+                                .map((item) => item.productId)
+                                .filter(Boolean),
+                            )
+                          }
+                          onValueChange={(nextValue) =>
+                            form.setValue(`items.${index}.productId`, nextValue, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                        {items.some(
+                          (item, itemIndex) =>
+                            itemIndex !== index &&
+                            item.productId &&
+                            item.productId === items[index]?.productId,
+                        ) ? (
+                          <p className="text-xs text-muted-foreground">
+                            This item is already added. Increase its quantity on the existing line instead.
+                          </p>
+                        ) : null}
+                        {form.formState.errors.items?.[index]?.productId?.message ? (
+                          <p className="text-xs text-destructive">
+                            {form.formState.errors.items[index]?.productId?.message}
+                          </p>
                         ) : null}
                       </div>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        {...form.register(`items.${index}.sellingPrice`)}
-                      />
-                      {form.formState.errors.items?.[index]?.sellingPrice?.message ? (
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items[index]?.sellingPrice?.message}
-                        </p>
-                      ) : null}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium sm:text-sm">Qty</Label>
+                        <Input type="number" min={1} {...form.register(`items.${index}.quantity`)} />
+                        {form.formState.errors.items?.[index]?.quantity?.message ? (
+                          <p className="text-xs text-destructive">
+                            {form.formState.errors.items[index]?.quantity?.message}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium sm:text-sm">Buying Price</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          {...form.register(`items.${index}.unitCost`)}
+                        />
+                        {form.formState.errors.items?.[index]?.unitCost?.message ? (
+                          <p className="text-xs text-destructive">
+                            {form.formState.errors.items[index]?.unitCost?.message}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="col-span-2 space-y-2 lg:col-span-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-xs font-medium sm:text-sm">Selling Price</Label>
+                          {index > 0 ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => remove(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          {...form.register(`items.${index}.sellingPrice`)}
+                        />
+                        {form.formState.errors.items?.[index]?.sellingPrice?.message ? (
+                          <p className="text-xs text-destructive">
+                            {form.formState.errors.items[index]?.sellingPrice?.message}
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={options.products.length === 0}
+                  onClick={handleAppendItem}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add item
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={options.products.length === 0}
-                onClick={handleAppendItem}
-              >
-                <Plus className="h-4 w-4" />
-                Add item
-              </Button>
+          </CardContent>
+        </Card>
+        <Card className="min-w-0 self-start border-primary/15 bg-gradient-to-b from-primary/[0.05] via-background to-background lg:sticky lg:top-4 lg:max-h-[calc(92vh-3rem)] lg:overflow-y-auto">
+          <CardHeader className="p-4 sm:p-6">
+            <div className="space-y-1">
+              <CardTitle>Purchase summary</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Live totals and line-item cost breakdown while you enter the purchase.
+              </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-        <Card>
-        <CardHeader>
-          <CardTitle>Purchase summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
-          <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
-            <p className="text-sm text-muted-foreground">Calculated total</p>
-            <p className="mt-2 text-3xl font-semibold">{formatCurrency(total)}</p>
-          </div>
-          <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-3 sm:space-y-4 sm:p-4">
-            <div className="space-y-2">
-              <Label htmlFor="purchase-settlement-mode">Payment option</Label>
-              <Select id="purchase-settlement-mode" {...form.register("settlementMode")}>
-                <option value="UNPAID">Pay later</option>
-                <option value="FULL">Pay full now</option>
-                <option value="PARTIAL">Pay part now</option>
-              </Select>
+          </CardHeader>
+          <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
+            <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
+              <p className="text-sm text-muted-foreground">Calculated total</p>
+              <p className="mt-2 text-3xl font-semibold">{formatCurrency(total)}</p>
             </div>
-            {settlementMode !== "UNPAID" ? (
-              <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Lines
+                </p>
+                <p className="mt-2 text-2xl font-semibold">{purchaseSummaryItems.length}</p>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Total Qty
+                </p>
+                <p className="mt-2 text-2xl font-semibold">{totalQuantity}</p>
+              </div>
+            </div>
+            <div className="space-y-3 rounded-2xl border border-border/70 bg-card/80 p-3 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">Items in this purchase</p>
+                <span className="text-xs text-muted-foreground">
+                  {purchaseSummaryItems.length} line{purchaseSummaryItems.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {purchaseSummaryItems.length > 0 ? (
                 <div className="space-y-2">
-                  <Label htmlFor="purchase-payment-account">Payment account</Label>
-                  <Select id="purchase-payment-account" {...form.register("paymentAccountId")}>
-                    <option value="">Select payment account</option>
-                    {availableAccounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {formatFinanceAccountLabel(account)}
-                      </option>
-                    ))}
-                  </Select>
-                  {form.formState.errors.paymentAccountId?.message ? (
-                    <p className="text-xs text-destructive">
-                      {form.formState.errors.paymentAccountId.message}
-                    </p>
-                  ) : null}
+                  {purchaseSummaryItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-xl border border-border/70 bg-muted/35 px-3 py-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{item.productName}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {item.quantity} qty | Buy {formatCurrency(item.unitCost)} | Sell{" "}
+                            {formatCurrency(item.sellingPrice)}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-semibold">
+                          {formatCurrency(item.lineTotal)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {settlementMode === "PARTIAL" ? (
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-3 py-4 text-sm text-muted-foreground">
+                  Add items to see the purchase breakdown here.
+                </div>
+              )}
+            </div>
+            <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-3 sm:space-y-4 sm:p-4">
+              <div className="space-y-2">
+                <Label htmlFor="purchase-settlement-mode">Payment option</Label>
+                <Select id="purchase-settlement-mode" {...form.register("settlementMode")}>
+                  <option value="UNPAID">Pay later</option>
+                  <option value="FULL">Pay full now</option>
+                  <option value="PARTIAL">Pay part now</option>
+                </Select>
+              </div>
+              {settlementMode !== "UNPAID" ? (
+                <>
                   <div className="space-y-2">
-                    <Label htmlFor="purchase-amount-paid">Amount paid now</Label>
-                    <Input
-                      id="purchase-amount-paid"
-                      type="number"
-                      min={0.01}
-                      max={total || undefined}
-                      step="0.01"
-                      {...form.register("amountPaid")}
-                    />
-                    {form.formState.errors.amountPaid?.message ? (
+                    <Label htmlFor="purchase-payment-account">Payment account</Label>
+                    <Select id="purchase-payment-account" {...form.register("paymentAccountId")}>
+                      <option value="">Select payment account</option>
+                      {availableAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {formatFinanceAccountLabel(account)}
+                        </option>
+                      ))}
+                    </Select>
+                    {form.formState.errors.paymentAccountId?.message ? (
                       <p className="text-xs text-destructive">
-                        {form.formState.errors.amountPaid.message}
+                        {form.formState.errors.paymentAccountId.message}
                       </p>
                     ) : null}
                   </div>
-                ) : null}
-                {availableAccounts.length === 0 ? (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    No active cash or bank account is available for this branch yet. Create one in Finance before paying during purchase creation.
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Paid now</span>
-              <span className="font-semibold">{formatCurrency(effectiveAmountPaid)}</span>
+                  {settlementMode === "PARTIAL" ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="purchase-amount-paid">Amount paid now</Label>
+                      <Input
+                        id="purchase-amount-paid"
+                        type="number"
+                        min={0.01}
+                        max={total || undefined}
+                        step="0.01"
+                        {...form.register("amountPaid")}
+                      />
+                      {form.formState.errors.amountPaid?.message ? (
+                        <p className="text-xs text-destructive">
+                          {form.formState.errors.amountPaid.message}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {availableAccounts.length === 0 ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      No active cash or bank account is available for this branch yet. Create one in Finance before paying during purchase creation.
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </div>
-            <div className="mt-2 flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Balance due</span>
-              <span className="font-semibold">{formatCurrency(amountDue)}</span>
+            <div className="rounded-2xl bg-muted/60 p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Paid now</span>
+                <span className="font-semibold">{formatCurrency(effectiveAmountPaid)}</span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Balance due</span>
+                <span className="font-semibold">{formatCurrency(amountDue)}</span>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
-            <Button
-              type="button"
-              variant="outline"
-              className="sm:flex-1"
-              disabled={isPending}
-              onClick={handleCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="sm:flex-1"
-              type="submit"
-              disabled={isPending || !canSubmit || !canPostWithPayment}
-            >
-              {isPending ? "Saving..." : "Save purchase"}
-            </Button>
-          </div>
-        </CardContent>
+            <div className="flex flex-col-reverse gap-2 sm:flex-row">
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:flex-1"
+                disabled={isPending}
+                onClick={handleCancel}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="sm:flex-1"
+                type="submit"
+                disabled={isPending || !canSubmit || !canPostWithPayment}
+              >
+                {isPending ? "Saving..." : "Save purchase"}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       </form>
       <Dialog open={isSupplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
