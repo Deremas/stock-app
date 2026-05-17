@@ -9,6 +9,8 @@ import {
   getOpenSellerCollectionsBySeller,
   getOpenSellerPayablesBySeller,
 } from "@/lib/stock-runtime-data";
+import { formatCurrency } from "@/lib/utils";
+import type { AppRole } from "@/lib/rbac";
 
 type SellerFilters = {
   sellerId?: string;
@@ -85,10 +87,17 @@ function createSellerOverviewHref(sellerId: string, branchId?: string) {
   });
 }
 
-function createReturnHref(sellerId?: string, sellerName?: string) {
+function createReturnHref(params: {
+  sellerId?: string;
+  sellerName?: string;
+  intakeItemId?: string;
+  assignmentItemId?: string;
+}) {
   return withFilter("/sellers/returns", {
-    ...(sellerId ? { sellerId } : {}),
-    ...(sellerName ? { q: sellerName } : {}),
+    ...(params.sellerId ? { sellerId: params.sellerId } : {}),
+    ...(params.sellerName ? { q: params.sellerName } : {}),
+    ...(params.intakeItemId ? { intakeItemId: params.intakeItemId } : {}),
+    ...(params.assignmentItemId ? { assignmentItemId: params.assignmentItemId } : {}),
     open: "1",
   });
 }
@@ -109,8 +118,90 @@ function createCollectionHref(sellerId?: string, sellerName?: string) {
   });
 }
 
+export async function getSellerSummary(sellerId: string, branchId?: string) {
+  const [intakeStats, assignmentStats, openPayables, openCollections] = await Promise.all([
+    prisma.sellerIntakeItem.aggregate({
+      where: {
+        sellerIntake: {
+          sellerId,
+          ...(branchId ? { branchId } : {}),
+        },
+      },
+      _sum: {
+        quantityBrought: true,
+        quantityAssigned: true,
+        quantitySold: true,
+        quantityReturned: true,
+      },
+    }),
+    prisma.sellerAssignmentItem.aggregate({
+      where: {
+        sellerAssignment: {
+          sellerId,
+          ...(branchId ? { branchId } : {}),
+        },
+      },
+      _sum: {
+        quantityAssigned: true,
+        quantitySold: true,
+        quantityReturned: true,
+      },
+    }),
+    getOpenSellerPayablesBySeller(branchId),
+    getOpenSellerCollectionsBySeller(branchId),
+  ]);
+
+  const receivedOnHand = 
+    (intakeStats._sum.quantityBrought ?? 0) - 
+    (intakeStats._sum.quantityAssigned ?? 0) - 
+    (intakeStats._sum.quantitySold ?? 0) - 
+    (intakeStats._sum.quantityReturned ?? 0);
+
+  const assignedOut = 
+    (assignmentStats._sum.quantityAssigned ?? 0) - 
+    (assignmentStats._sum.quantitySold ?? 0) - 
+    (assignmentStats._sum.quantityReturned ?? 0);
+
+  return {
+    receivedOnHand,
+    assignedOut,
+    payable: openPayables.get(sellerId) ?? 0,
+    receivable: openCollections.get(sellerId) ?? 0,
+  };
+}
+
+export async function getSellerMetrics(branchId?: string) {
+  const [payables, collections] = await Promise.all([
+    getOpenSellerPayablesBySeller(branchId),
+    getOpenSellerCollectionsBySeller(branchId),
+  ]);
+
+  const totalPayables = [...payables.values()].reduce((sum, val) => sum + val, 0);
+  const totalCollections = [...collections.values()].reduce((sum, val) => sum + val, 0);
+
+  return [
+    {
+      title: "Total Seller Payables",
+      value: formatCurrency(totalPayables),
+      tone: "warning" as const,
+      meta: "Stock received on consignment",
+    },
+    {
+      title: "Total Seller Receivables",
+      value: formatCurrency(totalCollections),
+      tone: "success" as const,
+      meta: "Assigned stock awaiting collection",
+    },
+    {
+      title: "Active Sellers",
+      value: String(payables.size + collections.size),
+      meta: "With outstanding balances",
+    },
+  ];
+}
+
 export async function getSellerRows(branchId?: string) {
-  const [sellers, intakeItems, assignmentItems, openPayables, openCollections] =
+  const [sellers, intakeStats, assignmentStats, openPayables, openCollections] =
     await Promise.all([
     prisma.seller.findMany({
       where: {
@@ -142,50 +233,33 @@ export async function getSellerRows(branchId?: string) {
     }),
     prisma.sellerIntakeItem.findMany({
       where: {
-        ...(branchId
-          ? {
-              sellerIntake: {
-                branchId,
-              },
-            }
-          : {}),
+        ...(branchId ? { sellerIntake: { branchId } } : {}),
       },
       select: {
         quantityBrought: true,
         quantityAssigned: true,
         quantitySold: true,
         quantityReturned: true,
-        sellerIntake: {
-          select: {
-            sellerId: true,
-          },
-        },
+        sellerIntake: { select: { sellerId: true } },
       },
     }),
     prisma.sellerAssignmentItem.findMany({
       where: {
-        ...(branchId
-          ? {
-              sellerAssignment: {
-                branchId,
-              },
-            }
-          : {}),
+        ...(branchId ? { sellerAssignment: { branchId } } : {}),
       },
       select: {
         quantityAssigned: true,
         quantitySold: true,
         quantityReturned: true,
-        sellerAssignment: {
-          select: {
-            sellerId: true,
-          },
-        },
+        sellerAssignment: { select: { sellerId: true } },
       },
     }),
     getOpenSellerPayablesBySeller(branchId),
     getOpenSellerCollectionsBySeller(branchId),
   ]);
+
+  const intakeItems = intakeStats;
+  const assignmentItems = assignmentStats;
 
   const receivedOnHandMap = new Map<string, number>();
   for (const item of intakeItems) {
@@ -228,57 +302,38 @@ export async function getSellerRows(branchId?: string) {
         status: seller.isActive ? "ACTIVE" : "INACTIVE",
         __actions: [
           createRowAction({
-            key: "overview",
-            label: "Overview",
+            key: "view",
+            label: "View",
             href: createSellerOverviewHref(seller.id, branchId),
-            icon: "reports",
+            icon: "view",
           }),
           createRowAction({
             key: "receive",
             label: "Receive",
             href: createReceiveHref(seller.id, seller.fullName),
-            icon: "newPurchase",
+            icon: "receive",
+            showLabel: true,
           }),
           createRowAction({
             key: "assign",
             label: "Assign",
             href: createAssignHref(undefined, seller.id),
-            icon: "stockMovements",
+            icon: "assign",
+            showLabel: true,
           }),
           createRowAction({
-            key: "returns",
-            label: "Return",
-            href: createReturnHref(seller.id, seller.fullName),
-            icon: "cashTransfers",
+            key: "settle",
+            label: "Settle",
+            href: withFilter("/sellers/settlements", { sellerId: seller.id, open: "1" }),
+            icon: "roles",
+            showLabel: true,
           }),
-          ...(receivableAmount > 0
-            ? [
-                createRowAction({
-                  key: "collections",
-                  label: "Collect",
-                  href: createCollectionHref(seller.id, seller.fullName),
-                  icon: "customerPayments",
-                }),
-              ]
-            : []),
-          ...(payableAmount > 0
-            ? [
-                createRowAction({
-                  key: "settlements",
-                  label: "Pay",
-                  href: createSettlementHref(seller.id, seller.fullName),
-                  icon: "supplierPayments",
-                }),
-              ]
-            : []),
           createRowAction({
-            key: "sold-items",
-            label: "Sold Items",
-            href: withFilter("/sales/sold-items", {
-              sellerId: seller.id,
-              q: seller.fullName,
-            }),
-            icon: "soldItems",
+            key: "collect",
+            label: "Collect",
+            href: withFilter("/sellers/collections", { sellerId: seller.id, open: "1" }),
+            icon: "collect",
+            showLabel: true,
           }),
         ],
       }) satisfies SimpleRow;
@@ -372,11 +427,12 @@ export async function getSellerIntakeRows(filters: SellerFilters = {}) {
                 createRowAction({
                   key: "return",
                   label: "Return",
-                  href: createReturnHref(
-                    row.sellerIntake.seller.id,
-                    row.sellerIntake.seller.fullName,
-                  ),
-                  icon: "cashTransfers",
+                  href: createReturnHref({
+                    sellerId: row.sellerIntake.seller.id,
+                    sellerName: row.sellerIntake.seller.fullName,
+                    intakeItemId: row.id,
+                  }),
+                  icon: "return",
                 }),
               ]
             : []),
@@ -395,9 +451,8 @@ export async function getSellerIntakeRows(filters: SellerFilters = {}) {
   );
 }
 
-export async function getSellerAssignCandidateRows(branchId?: string) {
+export async function getSellerAssignCandidateRows(branchId?: string, role: AppRole = "SALES") {
   const rows = await getOwnedStockBatches(branchId ? { branchId } : {});
-
   return rows.map(
     (row) =>
       ({
@@ -416,14 +471,14 @@ export async function getSellerAssignCandidateRows(branchId?: string) {
             key: "assign",
             label: "Assign",
             href: createAssignHref(row.id),
-            icon: "stockMovements",
+            icon: "assign",
           }),
         ],
       }) satisfies SimpleRow,
   );
 }
 
-export async function getSellerAssignedRows(filters: SellerFilters = {}) {
+export async function getSellerAssignedRows(filters: SellerFilters = {}, role: AppRole = "SALES") {
   const rows = await prisma.sellerAssignmentItem.findMany({
     where: {
       ...(filters.sellerId
@@ -530,18 +585,19 @@ export async function getSellerAssignedRows(filters: SellerFilters = {}) {
             key: "assign",
             label: "Assign",
             href: createAssignHref(undefined, row.sellerAssignment.seller.id),
-            icon: "stockMovements",
+            icon: "assign",
           }),
           ...(remainingQty > 0
             ? [
                 createRowAction({
                   key: "return",
                   label: "Return",
-                  href: createReturnHref(
-                    row.sellerAssignment.seller.id,
-                    row.sellerAssignment.seller.fullName,
-                  ),
-                  icon: "cashTransfers",
+                  href: createReturnHref({
+                    sellerId: row.sellerAssignment.seller.id,
+                    sellerName: row.sellerAssignment.seller.fullName,
+                    assignmentItemId: row.id,
+                  }),
+                  icon: "return",
                 }),
               ]
             : []),
@@ -552,7 +608,7 @@ export async function getSellerAssignedRows(filters: SellerFilters = {}) {
               row.sellerAssignment.seller.id,
               row.sellerAssignment.seller.fullName,
             ),
-            icon: "customerPayments",
+            icon: "collect",
           }),
         ],
       }) satisfies SimpleRow;
@@ -560,7 +616,7 @@ export async function getSellerAssignedRows(filters: SellerFilters = {}) {
   );
 }
 
-export async function getSellerReturnRows(filters: SellerFilters = {}) {
+export async function getSellerReturnRows(filters: SellerFilters & { flow?: string } = {}) {
   const returnDate = getDateRangeFilter(filters);
 
   const rows = await prisma.sellerReturnItem.findMany({
@@ -574,6 +630,8 @@ export async function getSellerReturnRows(filters: SellerFilters = {}) {
             },
           }
         : {}),
+      ...(filters.flow === "BACK_TO_PARTNER" ? { sellerIntakeItemId: { not: null } } : {}),
+      ...(filters.flow === "BACK_TO_BRANCH" ? { sellerAssignmentItemId: { not: null } } : {}),
     },
     orderBy: {
       createdAt: "desc",
@@ -586,6 +644,7 @@ export async function getSellerReturnRows(filters: SellerFilters = {}) {
       },
       sellerReturn: {
         select: {
+          id: true,
           returnNumber: true,
           returnDate: true,
           branch: {
@@ -642,8 +701,37 @@ export async function getSellerReturnRows(filters: SellerFilters = {}) {
         )?.toISOString() ?? "",
         returnDate: row.sellerReturn.returnDate.toISOString(),
         status: "POSTED",
+        __actions: [
+          createRowAction({
+            key: "view",
+            label: "View",
+            href: `/sellers/returns/${row.sellerReturn.id}`,
+            icon: "view",
+          }),
+          createRowAction({
+            key: "print",
+            label: "Print",
+            href: `/print/seller-return/${row.sellerReturn.id}`,
+            icon: "print",
+          }),
+        ],
       }) satisfies SimpleRow,
   );
+}
+
+export async function getSellerReturnDetail(id: string) {
+  return prisma.sellerReturn.findUnique({
+    where: { id },
+    include: {
+      seller: { select: { fullName: true, phone: true } },
+      branch: { select: { name: true } },
+      items: {
+        include: {
+          product: { select: { name: true, sku: true } },
+        },
+      },
+    },
+  });
 }
 
 export async function getSellerSettlementRows(filters: SellerFilters = {}) {

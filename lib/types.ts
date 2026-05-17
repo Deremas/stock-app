@@ -59,6 +59,7 @@ export type TransferFormOptions = {
 export type SellerIntakeFormOptions = {
   branches: BranchOption[];
   sellers: NamedOption[];
+  products: ProductOption[];
 };
 
 export type SellerAssignmentFormOptions = {
@@ -205,6 +206,8 @@ export type SellerReturnLineOption = {
   sourceDate: string;
   availableQty: number;
   direction: SellerReturnLineDirection;
+  intakeItemId?: string;
+  assignmentItemId?: string;
 };
 
 export type SellerReturnFormOptions = {

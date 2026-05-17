@@ -11,7 +11,6 @@ export function formatCurrency(value: number | string) {
   const safeAmount = Number.isFinite(amount) ? amount : 0;
 
   return `ETB ${safeAmount.toLocaleString("en-ET", {
-    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
 }
@@ -29,6 +28,10 @@ export function formatDate(value: Date | string, token = "dd MMM yyyy") {
 
 export function formatDateTime(value: Date | string) {
   return format(new Date(value), "dd MMM yyyy, HH:mm");
+}
+
+export function formatDateForInput(date: Date | string = new Date()) {
+  return format(new Date(date), "yyyy-MM-dd'T'HH:mm");
 }
 
 export function getInitials(name: string) {

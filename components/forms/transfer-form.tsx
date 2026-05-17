@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -17,7 +17,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createTransferAction } from "@/lib/actions/transfers";
 import type { TransferFormOptions } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateForInput } from "@/lib/utils";
 import {
   transferSchema,
   type TransferFormInput,
@@ -25,6 +25,8 @@ import {
 
 type TransferFormProps = {
   options: TransferFormOptions;
+  initialProductId?: string;
+  initialSourceBranchId?: string;
 };
 
 function getOwnedBatchesForLine(
@@ -41,6 +43,25 @@ function getOwnedBatchesForLine(
   );
 }
 
+function getAvailableProductsForBranch(
+  options: TransferFormOptions,
+  branchId: string | undefined,
+) {
+  if (!branchId) {
+    return [];
+  }
+
+  const availableProductIds = new Set(
+    options.ownedBatches
+      .filter((batch) => batch.branchId === branchId && batch.remainingQuantity > 0)
+      .map((batch) => batch.productId),
+  );
+
+  return options.products.filter((product) =>
+    availableProductIds.has(product.id),
+  );
+}
+
 function getDefaultValues(options: TransferFormOptions): TransferFormInput {
   const sourceBranch = options.branches[0];
   const destinationBranch =
@@ -53,27 +74,41 @@ function getDefaultValues(options: TransferFormOptions): TransferFormInput {
   )[0];
 
   return {
-    sourceBranchId: sourceBranch?.id ?? "",
-    destinationBranchId: destinationBranch?.id ?? "",
-    transferAt: new Date().toISOString().slice(0, 16),
+    sourceBranchId: "",
+    destinationBranchId: "",
+    transferAt: formatDateForInput(),
     note: "",
     items: [
       {
-        productId: defaultProduct?.id ?? "",
-        ownedBatchId: defaultBatch?.id ?? "",
+        productId: "",
+        ownedBatchId: "",
         quantity: 1,
       },
     ],
   };
 }
 
-export function TransferForm({ options }: TransferFormProps) {
+export function TransferForm({ options, initialProductId, initialSourceBranchId }: TransferFormProps) {
   const createDialog = useCreateDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const defaultValues = getDefaultValues(options);
   const defaultProduct = options.products[0];
+  
+  const defaultValues = useMemo(() => {
+    const base = getDefaultValues(options);
+    return {
+      ...base,
+      ...(initialSourceBranchId ? { sourceBranchId: initialSourceBranchId } : {}),
+      items: [
+        {
+          ...base.items[0],
+          ...(initialProductId ? { productId: initialProductId } : {}),
+        },
+      ],
+    };
+  }, [options, initialProductId, initialSourceBranchId]);
+
   const canSubmit = options.branches.length > 1 && options.products.length > 0;
 
   const form = useForm<TransferFormInput>({
@@ -88,6 +123,7 @@ export function TransferForm({ options }: TransferFormProps) {
 
   const sourceBranchId = form.watch("sourceBranchId");
   const items = form.watch("items");
+  const availableProducts = getAvailableProductsForBranch(options, sourceBranchId);
   const previousSourceBranchId = useRef(defaultValues.sourceBranchId);
   const previousLineState = useRef(
     defaultValues.items.map((item) => ({
@@ -106,35 +142,16 @@ export function TransferForm({ options }: TransferFormProps) {
         sourceBranchId,
         item.productId,
       );
-      const previousProductId = previousLine?.productId;
-      const previousOwnedBatchId = previousLine?.ownedBatchId ?? "";
-      const productChanged = item.productId !== previousProductId;
       const batchStillValid = availableBatches.some(
         (batch) => batch.id === item.ownedBatchId,
       );
 
       if (!batchStillValid) {
-        form.setValue(`items.${index}.ownedBatchId`, availableBatches[0]?.id ?? "", {
-          shouldDirty: true,
-        });
-      }
-
-      if (!productChanged && !sourceChanged && item.ownedBatchId === previousOwnedBatchId) {
-        return;
-      }
-
-      if (availableBatches.length > 0 && item.ownedBatchId !== availableBatches[0]?.id) {
-        form.setValue(`items.${index}.ownedBatchId`, availableBatches[0]?.id ?? "", {
+        form.setValue(`items.${index}.ownedBatchId`, "", {
           shouldDirty: true,
         });
       }
     });
-
-    previousSourceBranchId.current = sourceBranchId;
-    previousLineState.current = items.map((item) => ({
-      productId: item.productId,
-      ownedBatchId: item.ownedBatchId,
-    }));
   }, [form, items, options, sourceBranchId]);
 
   function handleCancel() {
@@ -179,7 +196,7 @@ export function TransferForm({ options }: TransferFormProps) {
 
   return (
     <form
-      className="grid gap-6 xl:grid-cols-[2fr_1fr]"
+      className="flex flex-col gap-6"
       onChangeCapture={() => {
         if (submitError) {
           setSubmitError(null);
@@ -202,13 +219,14 @@ export function TransferForm({ options }: TransferFormProps) {
               Create active branches and items before posting transfers.
             </div>
           ) : null}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sourceBranchId">Source branch</Label>
               <Select id="sourceBranchId" {...form.register("sourceBranchId")}>
+                <option value="">Select source branch</option>
                 {options.branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
+                    {branch.name}
                   </option>
                 ))}
               </Select>
@@ -216,9 +234,10 @@ export function TransferForm({ options }: TransferFormProps) {
             <div className="space-y-2">
               <Label htmlFor="destinationBranchId">Destination branch</Label>
               <Select id="destinationBranchId" {...form.register("destinationBranchId")}>
+                <option value="">Select destination branch</option>
                 {options.branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
+                    {branch.name}
                   </option>
                 ))}
               </Select>
@@ -227,7 +246,7 @@ export function TransferForm({ options }: TransferFormProps) {
               </p>
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="transferAt">Transfer date</Label>
               <Input
@@ -238,7 +257,7 @@ export function TransferForm({ options }: TransferFormProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="transfer-note">Note</Label>
-              <Textarea id="transfer-note" rows={3} {...form.register("note")} />
+              <Textarea id="transfer-note" rows={1} className="min-h-[40px] resize-none" {...form.register("note")} />
             </div>
           </div>
           <div className="space-y-4">
@@ -246,27 +265,6 @@ export function TransferForm({ options }: TransferFormProps) {
               <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                 Transfer lines
               </h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={options.products.length === 0}
-                onClick={() =>
-                  append({
-                    productId: defaultProduct?.id ?? "",
-                    ownedBatchId:
-                      getOwnedBatchesForLine(
-                        options,
-                        sourceBranchId,
-                        defaultProduct?.id,
-                      )[0]?.id ?? "",
-                    quantity: 1,
-                  })
-                }
-              >
-                <Plus className="h-4 w-4" />
-                Add item
-              </Button>
             </div>
             <div className="space-y-4">
               {fields.map((field, index) => {
@@ -280,107 +278,106 @@ export function TransferForm({ options }: TransferFormProps) {
                 );
 
                 return (
-                  <div key={field.id} className="rounded-2xl border border-border p-4">
-                    <div className="grid gap-4 lg:grid-cols-[2fr_1.6fr_1fr_auto]">
+                  <div key={field.id} className="relative rounded-2xl border border-border p-4">
+                    {index > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-2 h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => remove(index)}
+                        title="Remove line"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    <div className="grid gap-4 sm:grid-cols-[2fr_1.5fr_100px] sm:items-start">
                       <div className="space-y-2">
                         <Label>Item</Label>
-                        <Select {...form.register(`items.${index}.productId`)}>
-                          {options.products.map((product) => (
+                        <Select 
+                          {...form.register(`items.${index}.productId`, {
+                            onChange: () => {
+                              form.setValue(`items.${index}.ownedBatchId`, "", { shouldDirty: true });
+                            }
+                          })}
+                        >
+                          <option value="">Select item</option>
+                          {availableProducts.map((product) => (
                             <option key={product.id} value={product.id}>
                               {product.name}
                             </option>
                           ))}
                         </Select>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Batch</Label>
-                        <Select {...form.register(`items.${index}.ownedBatchId`)}>
-                          <option value="">Select batch</option>
-                          {lineBatches.map((batch) => (
-                            <option key={batch.id} value={batch.id}>
-                              {batch.referenceNumber} | {batch.remainingQuantity} left
-                            </option>
-                          ))}
-                        </Select>
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items?.[index]?.ownedBatchId?.message}
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Qty</Label>
+                      <div className="flex gap-2 sm:contents">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <Label>Source</Label>
+                          <Select {...form.register(`items.${index}.ownedBatchId`)}>
+                            <option value="">Select item source</option>
+                            {lineBatches.map((batch) => (
+                              <option key={batch.id} value={batch.id}>
+                                {batch.referenceNumber} | {batch.remainingQuantity} left
+                              </option>
+                            ))}
+                          </Select>
+                          <p className="text-xs text-destructive">
+                            {form.formState.errors.items?.[index]?.ownedBatchId?.message}
+                          </p>
+                        </div>
+                        <div className="w-[72px] shrink-0 space-y-2">
+                        <Label>
+                          Qty{" "}
+                          {selectedBatch && (
+                            <span className="text-[10px] text-muted-foreground">
+                              (Max: {selectedBatch.remainingQuantity})
+                            </span>
+                          )}
+                        </Label>
                         <Input
                           type="number"
                           min={1}
+                          max={selectedBatch?.remainingQuantity}
                           {...form.register(`items.${index}.quantity`)}
                         />
                         <p className="text-xs text-destructive">
                           {form.formState.errors.items?.[index]?.quantity?.message}
                         </p>
                       </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => remove(index)}
-                          disabled={fields.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </div>
-                    {selectedBatch ? (
-                      <div className="mt-4 grid gap-2 rounded-2xl bg-muted/40 p-4 text-sm md:grid-cols-2 xl:grid-cols-4">
-                        <p>
-                          Source: <span className="font-medium">{selectedBatch.sourceName}</span>
-                        </p>
-                        <p>
-                          Remaining:{" "}
-                          <span className="font-medium">{selectedBatch.remainingQuantity}</span>
-                        </p>
-                        <p>
-                          Buying Price:{" "}
-                          <span className="font-medium">
-                            {formatCurrency(selectedBatch.unitCost)}
-                          </span>
-                        </p>
-                        <p>
-                          Selling Price:{" "}
-                          <span className="font-medium">
-                            {formatCurrency(selectedBatch.sellingPrice)}
-                          </span>
-                        </p>
-                      </div>
-                    ) : null}
+                    </div>
                   </div>
                 );
               })}
             </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={options.products.length === 0}
+                onClick={() =>
+                  append({
+                    productId: defaultProduct?.id ?? "",
+                    ownedBatchId: "",
+                    quantity: 1,
+                  })
+                }
+              >
+                <Plus className="h-4 w-4" />
+                Add item
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Transfer summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            Transfer posting immediately moves stock out of the source branch and into the destination branch.
-          </div>
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            The destination receives a real saleable owned batch with the same buying price and current selling price.
-          </div>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <div className="mt-6 flex flex-col-reverse gap-2 border-t pt-6 sm:flex-row sm:justify-end">
             <Button
               type="button"
               variant="outline"
-              className="sm:flex-1"
               disabled={isPending}
               onClick={handleCancel}
             >
               Cancel
             </Button>
-            <Button className="sm:flex-1" type="submit" disabled={isPending || !canSubmit}>
+            <Button type="submit" disabled={isPending || !canSubmit}>
               {isPending ? "Saving..." : "Post transfer"}
             </Button>
           </div>

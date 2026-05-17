@@ -4,7 +4,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import { SupplierForm } from "@/components/forms/supplier-form";
 import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createPurchaseAction } from "@/lib/actions/purchases";
 import type { PurchaseFormOptions } from "@/lib/types";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatDateForInput } from "@/lib/utils";
 import {
   purchaseSchema,
   type PurchaseFormInput,
@@ -41,6 +42,7 @@ import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 
 type PurchaseFormProps = {
   options: PurchaseFormOptions;
+  userRole?: string;
   initialBranchId?: string;
   initialProductId?: string;
   mode?: "page" | "modal";
@@ -130,16 +132,16 @@ function getDefaultValues(
     options.branches[0];
 
   return {
-    branchId: defaultBranch?.id ?? "",
+    branchId: "",
     supplierId: "",
     paymentAccountId: "",
     settlementMode: "UNPAID",
     amountPaid: 0,
-    purchasedAt: new Date().toISOString().slice(0, 16),
+    purchasedAt: formatDateForInput(),
     note: "",
     items: [
       {
-        productId: defaultProduct?.id ?? "",
+        productId: "",
         quantity: 1,
         unitCost: 0,
         sellingPrice: 0,
@@ -150,6 +152,7 @@ function getDefaultValues(
 
 export function PurchaseForm({
   options,
+  userRole,
   initialBranchId,
   initialProductId,
   mode = "page",
@@ -294,11 +297,11 @@ export function PurchaseForm({
     if (
       settlementMode !== "UNPAID" &&
       availableAccounts.length > 0 &&
+      paymentAccountId !== "" &&
       !availableAccounts.some((account) => account.id === paymentAccountId)
     ) {
-      form.setValue("paymentAccountId", availableAccounts[0]?.id ?? "", {
+      form.setValue("paymentAccountId", "", {
         shouldDirty: true,
-        shouldValidate: true,
       });
     }
 
@@ -420,7 +423,7 @@ export function PurchaseForm({
   return (
     <>
       <form
-        className="grid min-w-0 items-start gap-3 sm:gap-6 lg:grid-cols-[minmax(0,1.72fr)_minmax(320px,0.98fr)]"
+        className="grid min-w-0 items-start gap-3 sm:gap-6 lg:grid-cols-[minmax(0,2.5fr)_minmax(300px,1fr)]"
         onChangeCapture={() => {
           if (submitError) {
             setSubmitError(null);
@@ -449,6 +452,7 @@ export function PurchaseForm({
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
                 <Select id="branchId" {...form.register("branchId")}>
+                  <option value="">Select branch</option>
                   {options.branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.code} - {branch.name}
@@ -481,10 +485,7 @@ export function PurchaseForm({
                     </option>
                   ))}
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Leave blank for a direct purchase paid now. Choose a supplier if this purchase
-                  needs payable tracking or later settlement.
-                </p>
+                {/* Instruction removed */}
                 {form.formState.errors.supplierId?.message ? (
                   <p className="text-xs text-destructive">
                     {form.formState.errors.supplierId.message}
@@ -503,26 +504,46 @@ export function PurchaseForm({
                 ) : null}
               </div>
             </div>
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  Line items
-                </h3>
-              </div>
-              <div className="space-y-2.5 sm:space-y-4">
-                {fields.map((field, index) => (
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Line items
+                  </h3>
+                </div>
+                <div className="space-y-2 lg:-mx-6 lg:overflow-x-auto lg:px-6 lg:pb-4">
+                  <div className="lg:min-w-[750px] lg:space-y-2">
+                    <div className="hidden lg:grid lg:grid-cols-[minmax(180px,2.5fr)_minmax(80px,0.8fr)_minmax(130px,1.2fr)_minmax(130px,1.2fr)_40px] lg:gap-4 lg:px-4">
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Item name</Label>
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Qty</Label>
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Buying Price</Label>
+                      <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Selling Price</Label>
+                      <div />
+                    </div>
+                    {fields.map((field, index) => (
                   <div
                     key={field.id}
                     className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
                   >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
-                        Line {index + 1}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,3.7fr)_minmax(88px,0.6fr)_minmax(124px,0.9fr)_minmax(136px,0.95fr)] lg:items-end">
-                      <div className="col-span-2 space-y-2 lg:col-span-1">
-                        <Label className="text-xs font-medium sm:text-sm">Item name</Label>
+                      <div className="mb-3 flex items-center justify-between gap-3 lg:hidden">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                          Line {index + 1}
+                        </p>
+                        {index > 0 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => remove(index)}
+                            title="Remove line"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-[minmax(180px,2.5fr)_minmax(80px,0.8fr)_minmax(130px,1.2fr)_minmax(130px,1.2fr)_40px] lg:gap-4 lg:px-4 lg:items-center">
+                        <div className="col-span-2 space-y-2 lg:col-span-1">
+                          <Label className="text-xs font-medium sm:text-sm lg:hidden">Item name</Label>
                         <PurchaseItemPicker
                           value={items[index]?.productId ?? ""}
                           products={options.products}
@@ -557,8 +578,8 @@ export function PurchaseForm({
                           </p>
                         ) : null}
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium sm:text-sm">Qty</Label>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium sm:text-sm lg:hidden">Qty</Label>
                         <Input type="number" min={1} {...form.register(`items.${index}.quantity`)} />
                         {form.formState.errors.items?.[index]?.quantity?.message ? (
                           <p className="text-xs text-destructive">
@@ -566,13 +587,18 @@ export function PurchaseForm({
                           </p>
                         ) : null}
                       </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium sm:text-sm">Buying Price</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          {...form.register(`items.${index}.unitCost`)}
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium sm:text-sm lg:hidden">Buying Price</Label>
+                        <Controller
+                          control={form.control}
+                          name={`items.${index}.unitCost`}
+                          render={({ field: { value, onChange, ref } }) => (
+                            <CurrencyInput
+                              value={value as any}
+                              onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                              getInputRef={ref}
+                            />
+                          )}
                         />
                         {form.formState.errors.items?.[index]?.unitCost?.message ? (
                           <p className="text-xs text-destructive">
@@ -581,25 +607,19 @@ export function PurchaseForm({
                         ) : null}
                       </div>
                       <div className="col-span-2 space-y-2 lg:col-span-1">
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center justify-between gap-2 lg:hidden">
                           <Label className="text-xs font-medium sm:text-sm">Selling Price</Label>
-                          {index > 0 ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => remove(index)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          ) : null}
                         </div>
-                        <Input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          {...form.register(`items.${index}.sellingPrice`)}
+                        <Controller
+                          control={form.control}
+                          name={`items.${index}.sellingPrice`}
+                          render={({ field: { value, onChange, ref } }) => (
+                            <CurrencyInput
+                              value={value as any}
+                              onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                              getInputRef={ref}
+                            />
+                          )}
                         />
                         {form.formState.errors.items?.[index]?.sellingPrice?.message ? (
                           <p className="text-xs text-destructive">
@@ -607,9 +627,23 @@ export function PurchaseForm({
                           </p>
                         ) : null}
                       </div>
+                      <div className="hidden items-center lg:flex">
+                        {index > 0 ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-10 w-10 rounded-full text-destructive hover:bg-destructive/10"
+                            onClick={() => remove(index)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
               <div className="flex justify-end">
                 <Button
@@ -631,7 +665,7 @@ export function PurchaseForm({
             <div className="space-y-1">
               <CardTitle>Purchase summary</CardTitle>
               <p className="text-sm text-muted-foreground">
-                Live totals and line-item cost breakdown while you enter the purchase.
+                {/* Instruction removed */}
               </p>
             </div>
           </CardHeader>
@@ -719,13 +753,17 @@ export function PurchaseForm({
                   {settlementMode === "PARTIAL" ? (
                     <div className="space-y-2">
                       <Label htmlFor="purchase-amount-paid">Amount paid now</Label>
-                      <Input
-                        id="purchase-amount-paid"
-                        type="number"
-                        min={0.01}
-                        max={total || undefined}
-                        step="0.01"
-                        {...form.register("amountPaid")}
+                      <Controller
+                        control={form.control}
+                        name="amountPaid"
+                        render={({ field: { value, onChange, ref } }) => (
+                          <CurrencyInput
+                            id="purchase-amount-paid"
+                            value={value as any}
+                            onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                            getInputRef={ref}
+                          />
+                        )}
                       />
                       {form.formState.errors.amountPaid?.message ? (
                         <p className="text-xs text-destructive">

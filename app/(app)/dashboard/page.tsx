@@ -13,7 +13,7 @@ import { hasPermission } from "@/lib/rbac";
 export default async function DashboardPage() {
   const currentUser = await getCurrentUser();
   const role = currentUser?.role ?? "SALES";
-  const dashboardSnapshot = await getDashboardSnapshot(role);
+  const dashboardSnapshot = await getDashboardSnapshot(role, currentUser?.activeBranchId);
   const canViewReports = hasPermission(role, "reports:view");
   const showSalesTrend = canViewReports;
 

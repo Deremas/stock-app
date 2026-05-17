@@ -150,57 +150,29 @@ export async function getStockSummaryRows(branchId?: string) {
   noStore();
 
   try {
-    const [movements, activeBranches, activeProducts] = await Promise.all([
-      prisma.stockMovement.findMany({
-        where: {
-          ...(branchId ? { branchId } : {}),
-        },
-        include: {
-          branch: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          product: {
-            select: {
-              id: true,
-              name: true,
-              minimumStockAlert: true,
-            },
+    const movements = await prisma.stockMovement.findMany({
+      where: {
+        ...(branchId ? { branchId } : {}),
+      },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-        orderBy: {
-          movementDate: "asc",
+        product: {
+          select: {
+            id: true,
+            name: true,
+            minimumStockAlert: true,
+          },
         },
-      }),
-      prisma.branch.findMany({
-        where: {
-          isActive: true,
-          ...(branchId ? { id: branchId } : {}),
-        },
-        orderBy: {
-          name: "asc",
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      }),
-      prisma.product.findMany({
-        where: {
-          isActive: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-        select: {
-          id: true,
-          name: true,
-          minimumStockAlert: true,
-        },
-      }),
-    ]);
+      },
+      orderBy: {
+        movementDate: "asc",
+      },
+    });
 
     const summary = new Map<
       string,
@@ -216,28 +188,9 @@ export async function getStockSummaryRows(branchId?: string) {
         totalQty: number;
         stockValue: number;
         minimumStockAlert: number;
+        lastMovementDate: Date;
       }
     >();
-
-    for (const branch of activeBranches) {
-      for (const product of activeProducts) {
-        const key = `${branch.id}:${product.id}`;
-
-        summary.set(key, {
-          id: key,
-          branchId: branch.id,
-          branch: branch.name,
-          productId: product.id,
-          product: product.name,
-          ownedQty: 0,
-          sellerQty: 0,
-          assignedQty: 0,
-          totalQty: 0,
-          stockValue: 0,
-          minimumStockAlert: product.minimumStockAlert,
-        });
-      }
-    }
 
     for (const movement of movements) {
       const key = `${movement.branchId}:${movement.productId}`;
@@ -253,6 +206,7 @@ export async function getStockSummaryRows(branchId?: string) {
         totalQty: 0,
         stockValue: 0,
         minimumStockAlert: movement.product.minimumStockAlert,
+        lastMovementDate: movement.movementDate,
       };
 
       if (movement.ownershipType === "OWNED") {
@@ -261,6 +215,10 @@ export async function getStockSummaryRows(branchId?: string) {
         existing.sellerQty += movement.quantity;
       } else {
         existing.assignedQty += movement.quantity;
+      }
+
+      if (movement.movementDate > existing.lastMovementDate) {
+        existing.lastMovementDate = movement.movementDate;
       }
 
       existing.totalQty += movement.quantity;

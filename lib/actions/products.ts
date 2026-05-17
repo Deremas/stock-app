@@ -139,6 +139,126 @@ export async function createProductAction(
   }
 }
 
+export type BulkProductInput = {
+  name: string;
+  unit?: string;
+  minimumStockAlert?: number;
+  description?: string;
+};
+
+export async function createBulkProductsAction(
+  items: BulkProductInput[],
+): Promise<ActionResult> {
+  const actor = await getActionActorByPermission("inventory:manage");
+
+  if (!actor) {
+    return {
+      success: false,
+      message: "You are not allowed to create items.",
+    };
+  }
+
+  // Filter out invalid items (name too short) and remove duplicates by name
+  const seenNames = new Set<string>();
+  const validItems = items.filter(item => {
+    const name = item.name?.trim();
+    if (!name || name.length < 2 || seenNames.has(name.toLowerCase())) {
+      return false;
+    }
+    seenNames.add(name.toLowerCase());
+    return true;
+  });
+
+  if (validItems.length === 0) {
+    return {
+      success: false,
+      message: "Please provide at least one valid item name (minimum 2 characters).",
+    };
+  }
+
+  try {
+    const count = await prisma.$transaction(async (tx) => {
+      let createdCount = 0;
+
+      for (const item of validItems) {
+        const name = item.name.trim();
+        const existing = await tx.product.findFirst({
+          where: {
+            name: {
+              equals: name,
+              mode: "insensitive",
+            },
+          },
+          select: { id: true },
+        });
+
+        if (existing) continue;
+
+        const sku = await generateUniqueItemSku(tx, name);
+        const unit = item.unit?.trim() || "pcs";
+        const minimumStockAlert = item.minimumStockAlert ?? 0;
+        const description = normalizeOptionalString(item.description);
+
+        const product = await tx.product.create({
+          data: {
+            name,
+            sku,
+            unit,
+            minimumStockAlert,
+            isActive: true,
+            ...(description ? { description } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            unit: true,
+            minimumStockAlert: true,
+          },
+        });
+
+        await createAuditLog(tx, {
+          actorUserId: actor.id,
+          action: "PRODUCT_CREATE",
+          entityType: "Product",
+          entityId: product.id,
+          after: {
+            name: product.name,
+            unit: product.unit,
+            minimumStockAlert: product.minimumStockAlert,
+          },
+        });
+
+        createdCount++;
+      }
+
+      return createdCount;
+    });
+
+    if (count === 0) {
+      return {
+        success: false,
+        message: "No new items were created. They might already exist.",
+      };
+    }
+
+    revalidatePath("/inventory/products");
+    revalidatePath("/inventory/stock-overview");
+    revalidatePath("/inventory/low-stock");
+    revalidatePath("/inventory/out-of-stock");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      message: `Successfully created ${count} new items.`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: getActionErrorMessage(error, "Unable to perform bulk creation right now."),
+    };
+  }
+}
+
 export async function updateProductAction(
   input: ProductUpdateInput,
 ): Promise<ActionResult> {

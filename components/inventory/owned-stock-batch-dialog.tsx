@@ -83,27 +83,27 @@ export function OwnedStockBatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto p-0">
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-y-auto p-0">
         <div className="border-b border-border/70 px-6 py-4">
           <DialogHeader>
-            <DialogTitle>Remaining batches</DialogTitle>
+            <DialogTitle>Inventory sources</DialogTitle>
             <DialogDescription>
               {productName && branchName
-              ? `${productName} in ${branchName}. Updating a batch price affects only the unsold remaining quantity.`
-                : "Review or update batch selling prices for the remaining owned quantity."}
+              ? `${productName} in ${branchName}. Updating an item price affects only the unsold remaining quantity.`
+                : "Review or update item selling prices for the remaining owned quantity."}
             </DialogDescription>
           </DialogHeader>
         </div>
         <div className="space-y-4 p-6">
           {!canEdit ? (
             <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-              Batch prices are read-only for your role. Ask an admin if a remaining lot
+              Item prices are read-only for your role. Ask an admin if a remaining lot
               needs a selling price update.
             </div>
           ) : null}
           {batches.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              No remaining owned batches are available for this item in this branch.
+              No remaining inventory sources are available for this item in this branch.
             </div>
           ) : (
             batches.map((batch) => {
@@ -154,7 +154,7 @@ export function OwnedStockBatchDialog({
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Current batch selling price</p>
+                      <p className="text-sm font-medium">Current item selling price</p>
                       <p className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
                         {formatCurrency(batch.sellingPrice)}
                       </p>

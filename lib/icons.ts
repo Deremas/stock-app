@@ -13,6 +13,7 @@ import {
   Gauge,
   LayoutDashboard,
   Package,
+  Pencil,
   Receipt,
   ScrollText,
   Settings,
@@ -26,12 +27,20 @@ import {
   UserCheck,
   UserX,
   Wallet,
+  HandCoins,
+  RotateCcw,
+  PackagePlus,
+  Eye,
+  Printer,
 } from "lucide-react";
 
 export const iconMap = {
   dashboard: LayoutDashboard,
+  view: Eye,
+  print: Printer,
   inventory: Package,
   products: Box,
+  edit: Pencil,
   categories: Blocks,
   brands: BriefcaseBusiness,
   stockOverview: Store,
@@ -66,6 +75,11 @@ export const iconMap = {
   roles: ShieldCheck,
   ledger: ScrollText,
   auditLogs: ScrollText,
+  receive: PackagePlus,
+  assign: PackagePlus,
+  return: RotateCcw,
+  collect: HandCoins,
+  transfer: ArrowLeftRight,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof iconMap;

@@ -30,6 +30,8 @@ export default async function Page({ searchParams }: ProductsPageProps) {
   const productId = getSingleSearchParam(params, "productId");
   const deleteProductId = getSingleSearchParam(params, "deleteProductId");
   const isEdit = getSingleSearchParam(params, "mode") === "edit" && Boolean(productId);
+  const importMode = getSingleSearchParam(params, "import");
+  const initialMode = importMode === "excel" ? "EXCEL" : importMode === "bulk" ? "BULK" : "SINGLE";
 
   const [config, user] = await Promise.all([getTablePageConfig("inventoryProducts"), getCurrentUser()]);
   const canDelete = user?.role === "ADMIN";
@@ -102,6 +104,7 @@ export default async function Page({ searchParams }: ProductsPageProps) {
         <ProductForm
           mode="modal"
           intent={product ? "edit" : "create"}
+          initialMode={initialMode}
           {...(product
             ? {
                 initialValues: {

@@ -24,7 +24,7 @@ export function MetricGrid({
   return (
     <div
       className={cn(
-        "grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3",
+        "grid min-w-0 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
         compactMobile && "grid-cols-2 max-[359px]:grid-cols-1",
       )}
     >

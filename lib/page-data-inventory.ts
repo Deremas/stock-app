@@ -3,7 +3,8 @@ import { getOwnedStockBatches } from "@/lib/owned-stock-batches";
 import type { RowActionConfig, SimpleRow } from "@/lib/table";
 import { sumRows } from "@/lib/data-runtime-utils";
 import { getStockSummaryRows } from "@/lib/stock-runtime-data";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateTime, toTitleCase } from "@/lib/utils";
+import type { AppRole } from "@/lib/rbac";
 
 function createRowAction(action: RowActionConfig) {
   return action;
@@ -95,14 +96,14 @@ export async function getProductRows(branchId?: string) {
             key: "edit",
             label: "Edit",
             href: createEditItemHref(product.id),
-            icon: "settings",
+            icon: "edit",
           }),
         ],
       }) satisfies SimpleRow,
   );
 }
 
-export async function getStockOverviewRows(branchId?: string) {
+export async function getStockOverviewRows(branchId?: string, role: AppRole = "SALES") {
   const [rows, ownedBatches] = await Promise.all([
     getStockSummaryRows(branchId),
     getOwnedStockBatches(branchId ? { branchId } : {}),
@@ -139,6 +140,9 @@ export async function getStockOverviewRows(branchId?: string) {
     (row) => {
       const batchSummary = ownedBatchMap.get(`${row.branchId}:${row.productId}`);
       const actions: RowActionConfig[] = [];
+      const daysOld = Math.floor((Date.now() - row.lastMovementDate.getTime()) / (1000 * 60 * 60 * 24));
+      const agingText = daysOld === 0 ? "Today" : `${daysOld} day${daysOld === 1 ? "" : "s"} ago`;
+      const isDeadStock = daysOld > 90;
 
       if (row.ownedQty > 0) {
         actions.push(
@@ -150,11 +154,22 @@ export async function getStockOverviewRows(branchId?: string) {
               branchId: row.branchId,
             }),
             icon: "stockOverview",
+            showLabel: true,
           }),
         );
       }
 
       if (row.totalQty > 0) {
+        actions.push(
+          createRowAction({
+            key: "transfer",
+            label: "Transfer",
+            href: `/inventory/transfers?open=1&productId=${row.productId}&fromBranchId=${row.branchId}`,
+            icon: "transfer",
+            showLabel: true,
+          }),
+        );
+        
         actions.push(
           createRowAction({
             key: "sell",
@@ -164,6 +179,7 @@ export async function getStockOverviewRows(branchId?: string) {
               branchId: row.branchId,
             }),
             icon: "newSale",
+            showLabel: true,
           }),
         );
       }
@@ -183,10 +199,41 @@ export async function getStockOverviewRows(branchId?: string) {
         assignedQty: row.assignedQty,
         totalQty: row.totalQty,
         stockValue: Math.max(row.stockValue, 0),
+        aging: isDeadStock ? `${agingText} (Dead Stock)` : agingText,
+        agingStatus: isDeadStock ? "CRITICAL" : daysOld > 30 ? "WARNING" : "NORMAL",
         ...(actions.length > 0 ? { __actions: actions } : {}),
       } satisfies SimpleRow;
     },
   ).filter((row) => Number(row.totalQty) > 0);
+}
+
+export async function getStockOverviewMetrics(branchId?: string | null) {
+  const summary = await getStockSummaryRows(branchId ?? undefined);
+  
+  let totalValue = 0;
+  let totalOwnedItems = 0;
+  const uniqueInStock = new Set<string>();
+
+  for (const row of summary) {
+    if (row.totalQty > 0) {
+      uniqueInStock.add(row.productId);
+      totalValue += row.stockValue;
+      totalOwnedItems += row.ownedQty;
+    }
+  }
+
+  return [
+    {
+      title: "Total Owned Stock Value",
+      value: formatCurrency(totalValue),
+      meta: `Based on cost for ${totalOwnedItems} owned units`,
+    },
+    {
+      title: "Items in Stock",
+      value: String(uniqueInStock.size),
+      meta: "Across all active locations",
+    },
+  ];
 }
 
 export async function getLowStockRows(branchId?: string) {

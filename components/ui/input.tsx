@@ -12,6 +12,10 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className,
         )}
         ref={ref}
+        onFocus={(e) => {
+          e.target.select();
+          props.onFocus?.(e);
+        }}
         {...props}
       />
     );

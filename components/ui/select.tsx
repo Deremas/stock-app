@@ -121,7 +121,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         return String(defaultValue);
       }
 
-      return options.find((option) => !option.disabled)?.value ?? "";
+      return "";
     }, [controlledValue, defaultValue, options]);
     const [currentValue, setCurrentValue] = React.useState(initialValue);
     const selectedOption = options.find((option) => option.value === currentValue);
@@ -181,7 +181,9 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           return;
         }
 
-        setSelectValue(nativeSelect, nextValue);
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set;
+        setter?.call(nativeSelect, nextValue);
+        
         nativeSelect.dispatchEvent(new Event("input", { bubbles: true }));
         nativeSelect.dispatchEvent(new Event("change", { bubbles: true }));
         setOpen(false);
@@ -208,7 +210,6 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         <select
           {...props}
           ref={setRefs}
-          aria-hidden="true"
           className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
           disabled={disabled}
           onBlur={onBlur}
@@ -248,16 +249,17 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
+            <DropdownMenuContent
             align="start"
             collisionPadding={12}
             sideOffset={6}
-            className="min-w-0 p-1"
+            className="z-50 min-w-0 p-1"
             style={{
-              width: "min(var(--radix-dropdown-menu-trigger-width), calc(100vw - 1rem))",
-              maxWidth: "calc(100vw - 1rem)",
+              minWidth: "var(--radix-dropdown-menu-trigger-width)",
+              maxWidth: "min(28rem, calc(100vw - 1rem))",
               maxHeight: "min(18rem, calc(100vh - 6rem))",
               overflowY: "auto",
+              scrollbarWidth: "thin",
             }}
           >
             <DropdownMenuRadioGroup value={currentValue} onValueChange={handleValueChange}>
@@ -268,7 +270,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                   disabled={option.disabled}
                   className="max-w-full"
                 >
-                  <span className="block min-w-0 truncate">{option.label}</span>
+                  <span className="block min-w-0 py-0.5">{option.label}</span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>

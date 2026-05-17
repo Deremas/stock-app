@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { LayoutDashboard, SearchX } from "lucide-react";
+import { LayoutDashboard, SearchX, ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +52,10 @@ export function NotFoundState({
               <LayoutDashboard className="h-4 w-4" />
               Back to dashboard
             </Link>
+          </Button>
+          <Button variant="outline" onClick={() => window.history.back()}>
+            <ArrowLeft className="h-4 w-4" />
+            Go back
           </Button>
         </CardContent>
       </Card>

@@ -206,6 +206,7 @@ export async function deleteBranchAction(input: {
               sellerAssignments: true,
               sellerReturns: true,
               sellerSettlements: true,
+              sellerCollections: true,
               financeAccounts: true,
               expenses: true,
               customerPayments: true,

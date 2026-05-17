@@ -157,8 +157,8 @@ function MuiThemeBridge({ children }: { children: ReactNode }) {
 
   return (
     <MuiThemeProvider theme={theme}>
-      <CssBaseline />
       {children}
+      <CssBaseline />
       <Toaster
         richColors
         position="top-right"

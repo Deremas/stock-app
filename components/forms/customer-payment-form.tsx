@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
 import { createCustomerPaymentAction } from "@/lib/actions/customer-payments";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import type { CustomerPaymentFormOptions } from "@/lib/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateForInput, formatDateTime } from "@/lib/utils";
 import {
   customerPaymentSchema,
   type CustomerPaymentFormInput,
@@ -18,6 +18,7 @@ import {
 import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -44,12 +45,12 @@ function getDefaultValues(
   const defaultSale = customerSales[0];
 
   return {
-    customerId: defaultCustomer?.id ?? "",
-    saleId: defaultSale?.id ?? "",
+    customerId: "",
+    saleId: "",
     financeAccountId: "",
     settlementMode: initialSettlementMode,
     amount: defaultSale?.amountDue ?? 0,
-    paymentDate: new Date().toISOString().slice(0, 16),
+    paymentDate: formatDateForInput(),
     note: "",
   };
 }
@@ -103,8 +104,8 @@ export function CustomerPaymentForm({
   useEffect(() => {
     const financeAccountId = form.getValues("financeAccountId");
 
-    if (!availableAccounts.some((account) => account.id === financeAccountId)) {
-      form.setValue("financeAccountId", availableAccounts[0]?.id ?? "", {
+    if (financeAccountId !== "" && !availableAccounts.some((account) => account.id === financeAccountId)) {
+      form.setValue("financeAccountId", "", {
         shouldDirty: true,
       });
     }
@@ -192,6 +193,7 @@ export function CustomerPaymentForm({
             <div className="space-y-2">
               <Label htmlFor="customerId">Customer</Label>
               <Select id="customerId" {...form.register("customerId")}>
+                <option value="">Select customer</option>
                 {options.customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
                     {customer.name}
@@ -205,6 +207,7 @@ export function CustomerPaymentForm({
             <div className="space-y-2">
               <Label htmlFor="saleId">Credit sale</Label>
               <Select id="saleId" {...form.register("saleId")}>
+                <option value="">Select credit sale</option>
                 {customerSales.map((sale) => (
                   <option key={sale.id} value={sale.id}>
                     {sale.saleNumber} | {sale.branchName} | {formatCurrency(sale.amountDue)}
@@ -227,6 +230,7 @@ export function CustomerPaymentForm({
             <div className="space-y-2">
               <Label htmlFor="financeAccountId">Payment account</Label>
               <Select id="financeAccountId" {...form.register("financeAccountId")}>
+                <option value="">Select account</option>
                 {availableAccounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {formatFinanceAccountLabel(account)}
@@ -241,13 +245,18 @@ export function CustomerPaymentForm({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
-              <Input
-                id="amount"
-                type="number"
-                min={0.01}
-                step="0.01"
-                readOnly={settlementMode === "FULL"}
-                {...form.register("amount")}
+              <Controller
+                control={form.control}
+                name="amount"
+                render={({ field: { value, onChange, ref } }) => (
+                  <CurrencyInput
+                    id="customer-payment-amount"
+                    value={value as any}
+                    onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                    getInputRef={ref}
+                    readOnly={settlementMode === "FULL"}
+                  />
+                )}
               />
               <p className="text-xs text-destructive">
                 {form.formState.errors.amount?.message}

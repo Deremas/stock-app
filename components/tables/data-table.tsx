@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useMediaQuery } from "@/hooks/use-media-query";
+import { Eye } from "lucide-react";
 import {
   MaterialReactTable,
   useMaterialReactTable,
@@ -25,7 +27,7 @@ import {
 } from "@/lib/material-table";
 import type { SimpleColumn, SimpleRow } from "@/lib/table";
 import { getIcon } from "@/lib/icons";
-import { formatCurrency, formatDateTime, toTitleCase } from "@/lib/utils";
+import { cn, formatCurrency, formatDateTime, toTitleCase } from "@/lib/utils";
 
 function getStatusVariant(value: string) {
   const normalized = value.toUpperCase();
@@ -76,9 +78,20 @@ export function DataTable({
   exportFileName?: string;
   exportTitle?: string;
 }) {
+  const isMobile = useMediaQuery("(max-width: 640px)");
   const searchParams = useSearchParams();
   const routeSearch = searchParams.get("q") ?? "";
   const [globalFilter, setGlobalFilter] = useState(routeSearch);
+
+  const columnVisibility = useMemo(() => {
+    const visibility: Record<string, boolean> = {};
+    columns.forEach((column) => {
+      if (column.defaultHidden || (isMobile && column.hideOnMobile)) {
+        visibility[column.key] = false;
+      }
+    });
+    return visibility;
+  }, [isMobile, columns]);
 
   useEffect(() => {
     setGlobalFilter(routeSearch);
@@ -90,6 +103,20 @@ export function DataTable({
         accessorKey: column.key,
         header: column.header,
         ...getSimpleColumnSizing(column),
+        muiTableHeadCellProps: {
+          align:
+            column.align ??
+            (column.type === "number" || column.type === "currency"
+              ? "center"
+              : "left"),
+        },
+        muiTableBodyCellProps: {
+          align:
+            column.align ??
+            (column.type === "number" || column.type === "currency"
+              ? "center"
+              : "left"),
+        },
         Cell: ({ cell }) => {
           const rawValue = cell.getValue<string | number | boolean | null | undefined>();
 
@@ -145,7 +172,11 @@ export function DataTable({
             );
           }
 
-          return String(rawValue);
+          return (
+            <div className="max-w-[280px] truncate" title={String(rawValue)}>
+              {String(rawValue)}
+            </div>
+          );
         },
       })),
     [columns],
@@ -157,29 +188,22 @@ export function DataTable({
   );
   const rowActionsLayout = useMemo(() => {
     const actionGroups = data.map((row) => row.__actions ?? []);
-    const maxActionCount = actionGroups.reduce(
-      (max, actions) => Math.max(max, actions.length),
-      0,
-    );
-    const longestLabelLength = actionGroups.reduce(
-      (max, actions) =>
-        Math.max(
-          max,
-          ...actions.map((action) => action.label.trim().length),
-          0,
-        ),
-      0,
-    );
-    const size = Math.max(
-      300,
-      Math.min(620, maxActionCount * 70 + (longestLabelLength >= 10 ? 70 : 40)),
-    );
+    
+    let totalWidth = 0;
+    actionGroups.forEach(group => {
+      let groupWidth = 0;
+      group.forEach(action => {
+        groupWidth += action.showLabel ? 110 : 42;
+      });
+      totalWidth = Math.max(totalWidth, groupWidth);
+    });
+
+    const size = Math.max(80, totalWidth + 32);
 
     return {
       size,
-      minSize: Math.max(240, size - 80),
-      maxSize: Math.min(680, size + 60),
-      minWidth: `${Math.max(240, size - 50)}px`,
+      minSize: Math.max(70, size - 15),
+      maxSize: Math.min(600, size + 50),
     };
   }, [data]);
   const pinnedLeftColumns = useMemo(
@@ -214,21 +238,28 @@ export function DataTable({
     },
     state: {
       globalFilter,
+      columnVisibility,
     },
     onGlobalFilterChange: setGlobalFilter,
     positionActionsColumn: "last",
-        ...(hasRowActions
-          ? {
-              displayColumnDefOptions: {
-                "mrt-row-actions": {
-                  header: "Actions",
-                  size: rowActionsLayout.size,
-                  minSize: rowActionsLayout.minSize,
-                  maxSize: rowActionsLayout.maxSize,
-                },
+    ...(hasRowActions
+      ? {
+          displayColumnDefOptions: {
+            "mrt-row-actions": {
+              header: "Actions",
+              size: rowActionsLayout.size,
+              minSize: rowActionsLayout.minSize,
+              maxSize: rowActionsLayout.maxSize,
+              muiTableHeadCellProps: {
+                align: "center",
               },
-            }
-          : {}),
+              muiTableBodyCellProps: {
+                align: "center",
+              },
+            },
+          },
+        }
+      : {}),
     muiTablePaperProps: {
       elevation: 0,
       sx: {
@@ -265,17 +296,17 @@ export function DataTable({
     renderTopToolbarCustomActions: ({ table }) => {
       const visibleColumnKeys = table.getVisibleLeafColumns().map((column) => column.id);
       const exportColumns = columns.filter((column) =>
-        visibleColumnKeys.includes(column.key),
+          visibleColumnKeys.includes(column.key),
       );
       const exportRows = table.getPrePaginationRowModel().rows.map((row) => row.original);
 
       return (
-        <TableExportMenu
-          title={exportTitle ?? exportFileName}
-          fileName={exportFileName}
-          columns={exportColumns}
-          rows={exportRows}
-        />
+          <TableExportMenu
+              title={exportTitle ?? exportFileName}
+              fileName={exportFileName}
+              columns={exportColumns}
+              rows={exportRows}
+          />
       );
     },
     renderRowActions: ({ row }) => {
@@ -286,24 +317,30 @@ export function DataTable({
       }
 
       return (
-        <div
-          className="flex flex-wrap items-center gap-1.5 py-1"
-          style={{ minWidth: rowActionsLayout.minWidth }}
-        >
+        <div className="flex items-center justify-center gap-1 py-1">
           {actions.map((action) => {
-            const Icon = getIcon(action.icon);
+            const Icon = getIcon(action.icon) || Eye;
+            const showLabel = action.showLabel;
 
             return (
               <Button
                 key={action.key}
                 asChild
-                size="sm"
+                size={showLabel ? "sm" : "icon"}
                 variant={action.variant ?? "outline"}
-                className="h-8 whitespace-nowrap rounded-full px-2.5 text-[13px]"
+                title={action.label}
+                className={cn(
+                  "h-8 rounded-xl transition-all",
+                  showLabel ? "w-auto px-3 gap-2" : "w-8"
+                )}
               >
-                <a href={action.href}>
-                  <Icon className="h-4 w-4" />
-                  {action.label}
+                <a href={action.href} className="flex items-center gap-2">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {showLabel ? (
+                    <span className="text-xs font-bold tracking-tight">{action.label}</span>
+                  ) : (
+                    <span className="sr-only">{action.label}</span>
+                  )}
                 </a>
               </Button>
             );

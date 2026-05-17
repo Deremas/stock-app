@@ -1,12 +1,10 @@
 import { z } from "zod";
 
 export const sellerIntakeItemSchema = z.object({
-  itemName: z
-    .string()
-    .trim()
-    .min(1, "Enter item name"),
+  productId: z.string().min(1, "Select product"),
   quantityBrought: z.coerce.number().int().positive("Quantity must be greater than zero"),
   sellerFixedPrice: z.coerce.number().positive("Seller fixed price is required"),
+  targetSellingPrice: z.coerce.number().positive("Target selling price is required"),
 });
 
 export const sellerIntakeSchema = z.object({

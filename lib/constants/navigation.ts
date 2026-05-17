@@ -59,6 +59,12 @@ export const navigationEntries: NavigationEntry[] = [
         icon: "lowStock",
         permission: "inventory:view",
       },
+      {
+        title: "Transfers",
+        href: "/inventory/transfers",
+        icon: "transfers",
+        permission: "inventory:view",
+      },
     ],
   },
   {
@@ -131,11 +137,11 @@ export const navigationEntries: NavigationEntry[] = [
   },
   {
     type: "group",
-    title: "Partners",
+    title: "Sellers",
     icon: "sellers",
     items: [
       {
-        title: "Partners",
+        title: "Sellers",
         href: "/sellers/list",
         icon: "sellers",
         permission: "sellers:manage",
@@ -165,13 +171,13 @@ export const navigationEntries: NavigationEntry[] = [
         permission: "sellers:manage",
       },
       {
-        title: "Pay Partners",
+        title: "Pay Sellers",
         href: "/sellers/settlements",
         icon: "supplierPayments",
         permission: "seller-settlements:create",
       },
       {
-        title: "Collect From Partners",
+        title: "Collect From Sellers",
         href: "/sellers/collections",
         icon: "customerPayments",
         permission: "seller-settlements:create",
@@ -241,10 +247,9 @@ const hiddenPageTitles: NavigationItem[] = [
   { title: "Profile", href: "/profile", icon: "users" },
   { title: "Alert Records", href: "/inventory/alert-records", icon: "alertRecords" },
   { title: "Stock Movements", href: "/inventory/stock-movements", icon: "stockMovements" },
-  { title: "Transfers", href: "/inventory/transfers", icon: "transfers" },
   { title: "Customer Payments", href: "/sales/customer-payments", icon: "customerPayments" },
   { title: "Supplier Payments", href: "/purchases/supplier-payments", icon: "supplierPayments" },
-  { title: "Partner Overview", href: "/sellers", icon: "sellers" },
+  { title: "Seller Overview", href: "/sellers", icon: "sellers" },
   { title: "Received Records", href: "/sellers/intake-records", icon: "purchaseList" },
   { title: "Cash", href: "/finance/cash", icon: "cashTransfers" },
   { title: "Cash Transfers", href: "/finance/cash-transfers", icon: "cashTransfers" },
@@ -260,7 +265,7 @@ const hiddenPageTitles: NavigationItem[] = [
 
 const hiddenGroupPrefixes = [
   {
-    groupTitle: "Partners",
+    groupTitle: "Sellers",
     href: "/sellers",
   },
 ] as const;

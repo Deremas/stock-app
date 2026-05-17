@@ -6,6 +6,7 @@ import {
   getOutOfStockRows,
   getProductRows,
   getStockMovementRows,
+  getStockOverviewMetrics,
   getStockOverviewRows,
   getTransferRows,
 } from "@/lib/page-data-inventory";
@@ -38,10 +39,12 @@ import {
   getSellerAssignCandidateRows,
   getSellerCollectionRows,
   getSellerIntakeRows,
+  getSellerMetrics,
   getSellerReturnRows,
   getSellerRows,
   getSellerSettlementRows,
 } from "@/lib/page-data-sellers";
+import { hasPermission } from "@/lib/rbac";
 import type { TablePageConfig } from "@/lib/table";
 
 type TablePageFilters = {
@@ -51,6 +54,8 @@ type TablePageFilters = {
   branchId?: string;
   dateFrom?: string;
   dateTo?: string;
+  flow?: string;
+  type?: string;
 };
 
 export type TablePageKey =
@@ -116,7 +121,8 @@ export async function getTablePageConfig(
   filters: TablePageFilters = {},
 ): Promise<TablePageConfig> {
   const currentUser = await getCurrentUser();
-  const activeBranchId = filters.branchId ?? currentUser?.activeBranchId;
+  const canViewAll = currentUser && hasPermission(currentUser.role, "branch:view-all");
+  const activeBranchId = canViewAll ? (filters.branchId ?? currentUser?.activeBranchId) : currentUser?.activeBranchId;
 
   switch (key) {
     case "inventoryProducts":
@@ -125,6 +131,9 @@ export async function getTablePageConfig(
         title: "Items",
         description: "Create and manage item records here.",
         actionLabel: "New item",
+        secondaryActionLabel: "Bulk Import",
+        secondaryActionParam: "import",
+        secondaryActionValue: "excel",
         exportFileName: "items",
         columns: [
           { key: "name", header: "Item" },
@@ -143,19 +152,21 @@ export async function getTablePageConfig(
           eyebrow: "Inventory",
           title: "Current Stock",
           description:
-            "Live stock balances by branch with remaining owned batch quantities and prices shown inline for faster stock review.",
+            "Live stock balances by branch with remaining item source quantities and prices shown inline for faster stock review.",
           exportFileName: "current-stock",
-          columns: [
-            { key: "branch", header: "Branch" },
-            { key: "product", header: "Item" },
-            { key: "ownedBatches", header: "Batch Details", type: "multiline" },
-            { key: "ownedQty", header: "Owned Qty", type: "number" },
-            { key: "sellerQty", header: "Partner Qty", type: "number" },
-            { key: "assignedQty", header: "Assigned Qty", type: "number" },
+        columns: [
+          { key: "branch", header: "Branch", defaultHidden: true },
+          { key: "product", header: "Item" },
+          { key: "aging", header: "Last Movement", type: "status" },
+          { key: "ownedBatches", header: "Item Details", type: "multiline", defaultHidden: true },
+          { key: "ownedQty", header: "Owned Qty", type: "number" },
+          { key: "sellerQty", header: "Seller Qty", type: "number" },
+          { key: "assignedQty", header: "Assigned Qty", type: "number", hideOnMobile: true },
           { key: "totalQty", header: "Total Qty", type: "number" },
-          { key: "stockValue", header: "Value", type: "currency" },
+          { key: "stockValue", header: "Value", type: "currency", hideOnMobile: true },
         ],
-        rows: await getStockOverviewRows(activeBranchId),
+        rows: await getStockOverviewRows(activeBranchId, currentUser?.role ?? "SALES"),
+        kpis: await getStockOverviewMetrics(activeBranchId),
       };
     case "inventoryLowStock":
       return {
@@ -165,7 +176,7 @@ export async function getTablePageConfig(
           "Items that have reached or fallen below the configured minimum stock level.",
         exportFileName: "low-stock",
         columns: [
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "name", header: "Item" },
           { key: "currentStock", header: "Current", type: "number" },
           { key: "minimumStockAlert", header: "Threshold", type: "number" },
@@ -181,7 +192,7 @@ export async function getTablePageConfig(
           "Finished items by branch that are currently unavailable and ready for replenishment.",
         exportFileName: "out-of-stock",
         columns: [
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "name", header: "Item" },
           { key: "currentStock", header: "Current", type: "number" },
           { key: "minimumStockAlert", header: "Threshold", type: "number" },
@@ -196,7 +207,7 @@ export async function getTablePageConfig(
         description: "Low-stock alert history raised by the inventory ledger.",
         exportFileName: "alert-records",
         columns: [
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
           { key: "threshold", header: "Threshold", type: "number" },
           { key: "quantityAtAlert", header: "Qty At Alert", type: "number" },
@@ -213,7 +224,7 @@ export async function getTablePageConfig(
           "Ledger-style item movement history with source traceability across stock flows.",
         exportFileName: "stock-movements",
         columns: [
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
           { key: "type", header: "Movement Type", type: "status" },
           { key: "ownership", header: "Ownership" },
@@ -232,7 +243,7 @@ export async function getTablePageConfig(
         actionLabel: "New transfer",
         exportFileName: "transfers",
         columns: [
-          { key: "transferNumber", header: "Transfer No." },
+          { key: "transferNumber", header: "Transfer No.", defaultHidden: true },
           { key: "sourceBranch", header: "From" },
           { key: "destinationBranch", header: "To" },
           { key: "itemCount", header: "Items", type: "number" },
@@ -251,14 +262,14 @@ export async function getTablePageConfig(
         exportFileName: "sold-items",
         columns: [
           { key: "saleNumber", header: "Sale No." },
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
           { key: "quantity", header: "Qty", type: "number" },
           { key: "source", header: "Source", type: "status" },
           { key: "seller", header: "Seller" },
-          { key: "customer", header: "Customer" },
+          { key: "customer", header: "Customer", hideOnMobile: true },
           { key: "total", header: "Total", type: "currency" },
-          { key: "soldAt", header: "Sold At", type: "dateTime" },
+          { key: "soldAt", header: "Sold At", type: "dateTime", hideOnMobile: true },
         ],
         rows: await getSoldItemRows({
           ...(filters.customerId ? { customerId: filters.customerId } : {}),
@@ -277,9 +288,16 @@ export async function getTablePageConfig(
         actionLabel: "New sale",
         actionHref: "/sales/new",
         exportFileName: "sales-list",
+        tabs: [
+          { key: "ALL", label: "All Sales" },
+          { key: "PARTNER", label: "Partner Sales" },
+          { key: "WALK_IN", label: "Walk-in" },
+        ],
+        activeTab: filters.type || "ALL",
+        tabParam: "type",
         columns: [
-          { key: "saleNumber", header: "Sale No." },
-          { key: "branch", header: "Branch" },
+          { key: "saleNumber", header: "Sale No.", defaultHidden: true },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "customer", header: "Customer" },
           { key: "paymentMethod", header: "Payment", type: "status" },
           { key: "total", header: "Total", type: "currency" },
@@ -289,6 +307,7 @@ export async function getTablePageConfig(
         rows: await getSalesRows({
           ...(filters.customerId ? { customerId: filters.customerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
+          ...(filters.type && filters.type !== "ALL" ? { type: filters.type as any } : {}),
         }),
       };
     case "salesCustomers":
@@ -368,7 +387,7 @@ export async function getTablePageConfig(
         actionHref: "/purchases/new",
         exportFileName: "purchase-list",
         columns: [
-          { key: "purchaseNumber", header: "Purchase No." },
+          { key: "purchaseNumber", header: "Purchase No.", defaultHidden: true },
           { key: "branch", header: "Branch" },
           { key: "supplier", header: "Supplier" },
           { key: "itemsPurchased", header: "Items Purchased", type: "multiline" },
@@ -426,38 +445,39 @@ export async function getTablePageConfig(
       };
     case "sellersList":
       return {
-        eyebrow: "Partners",
-        title: "Partners",
+        eyebrow: "Sellers",
+        title: "Sellers",
         description:
-          "Partner list showing received-stock payables separately from assigned-stock receivables.",
-        actionLabel: "New partner",
+          "Seller list showing received-stock payables separately from assigned-stock receivables.",
+        actionLabel: "New seller",
         exportFileName: "sellers",
         columns: [
-          { key: "fullName", header: "Partner" },
+          { key: "fullName", header: "Seller" },
           { key: "phone", header: "Phone" },
           { key: "location", header: "Location" },
-          { key: "note", header: "Note" },
+          { key: "note", header: "Note", defaultHidden: true },
           { key: "receivedOnHandQty", header: "Received On Hand", type: "number" },
           { key: "assignedOutQty", header: "Assigned Out", type: "number" },
-          { key: "payableAmount", header: "Received Payable", type: "currency" },
-          { key: "receivableAmount", header: "Assigned Receivable", type: "currency" },
-          { key: "lastIntakeAt", header: "Last Intake", type: "dateTime" },
+          { key: "payableAmount", header: "Received Payable", type: "currency", hideOnMobile: true },
+          { key: "receivableAmount", header: "Assigned Receivable", type: "currency", hideOnMobile: true },
+          { key: "lastIntakeAt", header: "Last Intake", type: "dateTime", hideOnMobile: true },
           { key: "status", header: "Status", type: "status" },
         ],
         rows: await getSellerRows(activeBranchId),
+        kpis: await getSellerMetrics(activeBranchId),
       };
     case "sellersIntakeRecords":
       return {
-        eyebrow: "Partners",
+        eyebrow: "Sellers",
         title: "Received Records",
         description:
-          "Items received from partners with sold, returned, and remaining quantities.",
+          "Items received from sellers with sold, returned, and remaining quantities.",
         actionLabel: "Receive items",
         actionHref: "/sellers/new-intake",
         exportFileName: "seller-intakes",
         columns: [
           { key: "intakeNumber", header: "Record No." },
-          { key: "seller", header: "Partner" },
+          { key: "seller", header: "Seller" },
           { key: "branch", header: "Branch" },
           { key: "product", header: "Item" },
           { key: "quantityBrought", header: "Brought", type: "number" },
@@ -476,39 +496,39 @@ export async function getTablePageConfig(
       };
     case "sellersAssignItems":
       return {
-        eyebrow: "Partners",
+        eyebrow: "Sellers",
         title: "Assign Items",
         description:
-          "Available owned batches that can be issued to partners. Sold quantity is settled later, while unsold quantity can be returned into branch stock.",
+          "Available owned items that can be issued to sellers. Sold quantity is settled later, while unsold quantity can be returned into branch stock.",
         actionLabel: "New assignment",
         exportFileName: "seller-assign-items",
         columns: [
-          { key: "branch", header: "Branch" },
+          { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
-          { key: "referenceNumber", header: "Batch Ref" },
-          { key: "source", header: "Source", type: "status" },
-          { key: "sourceName", header: "From" },
+          { key: "referenceNumber", header: "Item Ref", defaultHidden: true },
+          { key: "source", header: "Source", type: "status", hideOnMobile: true },
+          { key: "sourceName", header: "From", defaultHidden: true },
           { key: "availableQty", header: "Available", type: "number" },
-          { key: "unitCost", header: "Buying Price", type: "currency" },
+          { key: "unitCost", header: "Buying Price", type: "currency", hideOnMobile: true },
           { key: "sellingPrice", header: "Current Sell", type: "currency" },
-          { key: "status", header: "Status", type: "status" },
+          { key: "status", header: "Status", type: "status", hideOnMobile: true },
         ],
-        rows: await getSellerAssignCandidateRows(activeBranchId),
+        rows: await getSellerAssignCandidateRows(activeBranchId, currentUser?.role ?? "SALES"),
       };
     case "sellersAssignedItems":
       return {
-        eyebrow: "Partners",
+        eyebrow: "Sellers",
         title: "Assigned Items",
         description:
-          "Assignment history showing issued quantities, sold quantities, returned-to-stock quantities, and what is still out with the partner.",
+          "Assignment history showing issued quantities, sold quantities, returned-to-stock quantities, and what is still out with the seller.",
         exportFileName: "seller-assigned-items",
         columns: [
-          { key: "assignmentNumber", header: "Assignment No." },
-          { key: "seller", header: "Partner" },
-          { key: "branch", header: "Branch" },
-          { key: "product", header: "Product" },
-          { key: "sourceBatch", header: "Source Batch" },
-          { key: "assignedPrice", header: "Partner Pays", type: "currency" },
+          { key: "assignmentNumber", header: "Assignment No.", defaultHidden: true },
+          { key: "seller", header: "Seller" },
+          { key: "branch", header: "Branch", defaultHidden: true },
+          { key: "product", header: "Product", hideOnMobile: true },
+          { key: "sourceBatch", header: "Source Batch", defaultHidden: true },
+          { key: "assignedPrice", header: "Seller Pays", type: "currency" },
           { key: "unitCost", header: "Buying Price", type: "currency" },
           { key: "assignedQty", header: "Assigned", type: "number" },
           { key: "soldQty", header: "Sold", type: "number" },
@@ -520,25 +540,32 @@ export async function getTablePageConfig(
         rows: await getSellerAssignedRows({
           ...(filters.sellerId ? { sellerId: filters.sellerId } : {}),
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
-        }),
+        }, currentUser?.role ?? "SALES"),
       };
     case "sellersReturns":
       return {
-        eyebrow: "Partners",
+        eyebrow: "Sellers",
         title: "Returns",
         description:
-          "Posted returns of unsold received items back to the partner, and unsold assigned items back into branch stock.",
+          "Posted returns of unsold received items back to the seller, and unsold assigned items back into branch stock.",
         actionLabel: "Record return",
         exportFileName: "seller-returns",
+        tabs: [
+          { key: "ALL", label: "All Returns" },
+          { key: "BACK_TO_PARTNER", label: "To Partner" },
+          { key: "BACK_TO_BRANCH", label: "Back to Branch" },
+        ],
+        activeTab: filters.flow || "ALL",
+        tabParam: "flow",
         columns: [
-          { key: "returnNumber", header: "Return No." },
-          { key: "seller", header: "Partner" },
+          { key: "returnNumber", header: "Return No.", defaultHidden: true },
+          { key: "seller", header: "Seller" },
           { key: "branch", header: "Branch" },
           { key: "product", header: "Product" },
           { key: "flow", header: "Flow", type: "status" },
-          { key: "sourceRef", header: "Source Ref" },
-          { key: "quantity", header: "Qty", type: "number" },
-          { key: "sourceDate", header: "Source Date", type: "dateTime" },
+          { key: "sourceRef", header: "Source Ref", defaultHidden: true },
+          { key: "quantity", header: "Qty", type: "number", align: "center" },
+          { key: "sourceDate", header: "Source Date", type: "dateTime", defaultHidden: true },
           { key: "returnDate", header: "Return Date", type: "dateTime" },
           { key: "status", header: "Status", type: "status" },
         ],
@@ -547,19 +574,20 @@ export async function getTablePageConfig(
           ...(activeBranchId ? { branchId: activeBranchId } : {}),
           ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
           ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
+          ...(filters.flow ? { flow: filters.flow } : {}),
         }),
       };
     case "sellersSettlements":
       return {
-        eyebrow: "Partners",
-        title: "Pay Partners",
+        eyebrow: "Sellers",
+        title: "Pay Sellers",
         description:
-          "Pay exact sold received-partner lines with payment-account traceability. Assigned-from-us items are collected separately.",
+          "Pay exact sold received-seller lines with payment-account traceability. Assigned-from-us items are collected separately.",
         actionLabel: "New payment",
         exportFileName: "seller-settlements",
         columns: [
-          { key: "settlementNumber", header: "Settlement No." },
-          { key: "seller", header: "Partner" },
+          { key: "settlementNumber", header: "Settlement No.", defaultHidden: true },
+          { key: "seller", header: "Seller" },
           { key: "branch", header: "Branch" },
           { key: "paymentMethod", header: "Method", type: "status" },
           { key: "account", header: "Account" },
@@ -577,15 +605,15 @@ export async function getTablePageConfig(
       };
     case "sellersCollections":
       return {
-        eyebrow: "Partners",
-        title: "Collect From Partners",
+        eyebrow: "Sellers",
+        title: "Collect From Sellers",
         description:
           "Receive cash or bank collection for sold items previously assigned from branch stock.",
         actionLabel: "New collection",
         exportFileName: "seller-collections",
         columns: [
-          { key: "collectionNumber", header: "Collection No." },
-          { key: "seller", header: "Partner" },
+          { key: "collectionNumber", header: "Collection No.", defaultHidden: true },
+          { key: "seller", header: "Seller" },
           { key: "branch", header: "Branch" },
           { key: "paymentMethod", header: "Method", type: "status" },
           { key: "account", header: "Account" },
@@ -714,11 +742,11 @@ export async function getTablePageConfig(
           { key: "branch", header: "Branch" },
           { key: "product", header: "Product" },
           { key: "source", header: "Source", type: "status" },
-          { key: "partner", header: "Partner" },
+          { key: "seller", header: "Seller" },
           { key: "quantity", header: "Qty", type: "number" },
           { key: "saleTotal", header: "Sales", type: "currency" },
           { key: "costTotal", header: "Cost / Payable", type: "currency" },
-          { key: "partnerPayable", header: "Partner Payable", type: "currency" },
+          { key: "sellerPayable", header: "Seller Payable", type: "currency" },
           { key: "grossProfit", header: "Gross Profit", type: "currency" },
         ],
         rows: await getSalesProfitRows({
@@ -734,13 +762,13 @@ export async function getTablePageConfig(
       );
     case "reportsSellers":
       return {
-        eyebrow: "Reports",
-        title: "Partner Exposure",
+        eyebrow: "Sellers",
+        title: "Seller Exposure",
         description:
-          "Open received-stock quantities, assigned-out quantities, unpaid partner payables, and uncollected partner receivables grouped per partner, with row actions to drill into each partner history.",
-        exportFileName: "partner-exposure",
+          "Open received-stock quantities, assigned-out quantities, unpaid seller payables, and uncollected seller receivables grouped per seller, with row actions to drill into each seller history.",
+        exportFileName: "seller-exposure",
         columns: [
-          { key: "fullName", header: "Partner" },
+          { key: "fullName", header: "Seller" },
           { key: "phone", header: "Phone" },
           { key: "location", header: "Location" },
           { key: "note", header: "Note" },

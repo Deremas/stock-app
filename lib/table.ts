@@ -13,6 +13,10 @@ export type SimpleColumn = {
   key: string;
   header: string;
   type?: SimpleColumnType;
+  hideOnMobile?: boolean;
+  defaultHidden?: boolean;
+  align?: "left" | "center" | "right";
+  size?: number;
 };
 
 export type RowActionConfig = {
@@ -21,6 +25,7 @@ export type RowActionConfig = {
   href: string;
   icon: IconName;
   variant?: "default" | "secondary" | "outline" | "ghost" | "destructive";
+  showLabel?: boolean;
 };
 
 export type SimpleRow = {
@@ -31,14 +36,26 @@ export type SimpleRow = {
   string | number | boolean | null | undefined | RowActionConfig[]
 >;
 
+export type TableTab = {
+  key: string;
+  label: string;
+  count?: number;
+};
+
 export type TablePageConfig = {
   eyebrow?: string;
   title: string;
   description: string;
   actionLabel?: string;
   actionHref?: string;
+  secondaryActionLabel?: string;
+  secondaryActionParam?: string;
+  secondaryActionValue?: string;
   exportFileName?: string;
   kpis?: MetricCard[];
+  tabs?: TableTab[];
+  activeTab?: string;
+  tabParam?: string;
   columns: SimpleColumn[];
   rows: SimpleRow[];
 };

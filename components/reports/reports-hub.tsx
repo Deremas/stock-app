@@ -22,12 +22,12 @@ const reportOptions = [
   {
     id: "sales-profit",
     name: "Sales Profit",
-    description: "Daily sales with cost, partner payable, and gross profit.",
+    description: "Daily sales with cost, seller payable, and gross profit.",
     href: "/reports/sales",
   },
   {
     id: "partner-exposure",
-    name: "Partner Exposure",
+    name: "Seller Exposure",
     description:
       "Open received stock, assigned-out stock, unpaid payables, and uncollected receivables.",
     href: "/reports/sellers",
@@ -70,26 +70,26 @@ const reportOptions = [
   },
   {
     id: "seller-settlements",
-    name: "Partner Payments",
-    description: "Partner payout history with exact received-stock lines paid.",
+    name: "Seller Payments",
+    description: "Seller payout history with exact received-stock lines paid.",
     href: "/sellers/settlements",
   },
   {
     id: "seller-collections",
-    name: "Partner Collections",
+    name: "Seller Collections",
     description: "Cash and bank collections posted for sold assigned items.",
     href: "/sellers/collections",
   },
   {
     id: "seller-returns",
-    name: "Partner Returns",
-    description: "Unsold items returned either back to the partner or into branch stock.",
+    name: "Seller Returns",
+    description: "Unsold items returned either back to the seller or into branch stock.",
     href: "/sellers/returns",
   },
   {
     id: "seller-intakes",
-    name: "Partner Received Records",
-    description: "Received partner stock with sold, returned, and remaining quantities.",
+    name: "Seller Received Records",
+    description: "Received seller stock with sold, returned, and remaining quantities.",
     href: "/sellers/intake-records",
   },
 ] as const;

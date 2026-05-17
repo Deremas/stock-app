@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createSellerReturnAction } from "@/lib/actions/seller-returns";
 import type { SellerReturnFormOptions } from "@/lib/types";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, formatDateForInput } from "@/lib/utils";
 import {
   sellerReturnSchema,
   type SellerReturnFormInput,
@@ -24,7 +24,10 @@ import {
 
 type SellerReturnFormProps = {
   options: SellerReturnFormOptions;
+  userRole?: string;
   initialSellerId?: string;
+  initialIntakeItemId?: string;
+  initialAssignmentItemId?: string;
 };
 
 function getLinesForSelection(
@@ -42,28 +45,40 @@ function getLinesForSelection(
 function getDefaultValues(
   options: SellerReturnFormOptions,
   initialSellerId?: string,
+  initialIntakeItemId?: string,
+  initialAssignmentItemId?: string,
 ): SellerReturnFormInput {
+  // 1. Try to find a specific line matching the provided IDs
+  const targetLine = options.lines.find(
+    (line) =>
+      (initialIntakeItemId && line.intakeItemId === initialIntakeItemId) ||
+      (initialAssignmentItemId && line.assignmentItemId === initialAssignmentItemId),
+  );
+
+  // 2. Fallback to any line matching the seller, or just the first line
   const seededLine =
-    options.lines.find((line) => line.sellerId === initialSellerId) ?? options.lines[0];
+    targetLine ??
+    options.lines.find((line) => line.sellerId === initialSellerId) ??
+    options.lines[0];
+
   const selectedBranch =
     options.branches.find((branch) => branch.id === seededLine?.branchId) ??
     options.branches[0];
   const branchLines = options.lines.filter((line) => line.branchId === selectedBranch?.id);
-  const selectedSellerId =
-    branchLines.find((line) => line.sellerId === initialSellerId)?.sellerId ??
-    branchLines[0]?.sellerId ??
-    "";
-  const sellerLines = branchLines.filter((line) => line.sellerId === selectedSellerId);
+  
+  const selectedSellerId = initialSellerId
+    ? (branchLines.find((line) => line.sellerId === initialSellerId)?.sellerId ?? "")
+    : (targetLine?.sellerId ?? "");
 
   return {
     branchId: selectedBranch?.id ?? "",
     sellerId: selectedSellerId,
-    returnDate: new Date().toISOString().slice(0, 16),
+    returnDate: formatDateForInput(),
     note: "",
     items: [
       {
-        lineId: sellerLines[0]?.id ?? "",
-        quantity: 1,
+        lineId: targetLine?.id ?? (selectedSellerId ? (branchLines.find(l => l.sellerId === selectedSellerId)?.id ?? "") : ""),
+        quantity: targetLine?.availableQty ?? 1,
       },
     ],
   };
@@ -71,13 +86,26 @@ function getDefaultValues(
 
 export function SellerReturnForm({
   options,
+  userRole,
   initialSellerId,
+  initialIntakeItemId,
+  initialAssignmentItemId,
 }: SellerReturnFormProps) {
   const createDialog = useCreateDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const defaultValues = getDefaultValues(options, initialSellerId);
+  const [success, setSuccess] = useState<{
+    title: string;
+    message: string;
+    nextSteps: { label: string; href: string }[];
+  } | null>(null);
+  const defaultValues = getDefaultValues(
+    options, 
+    initialSellerId, 
+    initialIntakeItemId, 
+    initialAssignmentItemId
+  );
   const hasReturnableLines = options.lines.length > 0;
 
   const form = useForm<SellerReturnFormInput>({
@@ -115,7 +143,7 @@ export function SellerReturnForm({
     (sum, item) => sum + Number(item.quantity || 0),
     0,
   );
-  const totalToPartner = items.reduce((sum, item) => {
+  const totalToSeller = items.reduce((sum, item) => {
     const selectedLine = options.lines.find((line) => line.id === item.lineId);
     return selectedLine?.direction === "TO_PARTNER"
       ? sum + Number(item.quantity || 0)
@@ -144,7 +172,9 @@ export function SellerReturnForm({
     }
 
     if (!availableSellers.some((seller) => seller.id === sellerId)) {
-      form.setValue("sellerId", availableSellers[0]?.id ?? "", {
+      // Only auto-correct if a previous valid seller became invalid (e.g. branch changed).
+      // If sellerId is already "" (placeholder), keep it empty — don't auto-pick.
+      form.setValue("sellerId", sellerId ? (availableSellers[0]?.id ?? "") : "", {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -152,41 +182,19 @@ export function SellerReturnForm({
   }, [availableSellers, form, sellerId]);
 
   useEffect(() => {
-    const selectedLineIds = items.map((item) => item.lineId);
-
+    // Coherence check for line validity
     items.forEach((item, index) => {
       const currentLine = availableLines.find((line) => line.id === item.lineId);
-      const fallbackLine =
-        availableLines.find(
-          (line) =>
-            !selectedLineIds.some(
-              (lineId, currentIndex) => currentIndex !== index && lineId === line.id,
-            ),
-        ) ?? availableLines[0];
-      const nextLine = currentLine ?? fallbackLine;
-      const nextLineId = nextLine?.id ?? "";
-
-      if (item.lineId !== nextLineId) {
-        form.setValue(`items.${index}.lineId`, nextLineId, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
-
-      const maxQty = Math.max(nextLine?.availableQty ?? 1, 1);
-      const normalizedQty = Math.min(Math.max(Number(item.quantity || 1), 1), maxQty);
-
-      if (Number(item.quantity || 1) !== normalizedQty) {
-        form.setValue(`items.${index}.quantity`, normalizedQty, {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
+      if (!currentLine && item.lineId !== "") {
+        form.setValue(`items.${index}.lineId`, "", { shouldDirty: true });
+        form.setValue(`items.${index}.quantity`, 1, { shouldDirty: true });
       }
     });
   }, [availableLines, form, items]);
 
   function handleCancel() {
     setSubmitError(null);
+    setSuccess(null);
     form.reset(getDefaultValues(options, initialSellerId));
     createDialog?.close();
   }
@@ -208,6 +216,7 @@ export function SellerReturnForm({
   function onSubmit(values: SellerReturnFormInput) {
     startTransition(async () => {
       setSubmitError(null);
+      setSuccess(null);
       const result = await createSellerReturnAction(values);
 
       if (!result.success) {
@@ -217,10 +226,17 @@ export function SellerReturnForm({
       }
 
       setSubmitError(null);
+      setSuccess({
+        title: "Return Recorded",
+        message: `Successfully returned ${totalQuantity} unit(s). The stock levels have been updated accordingly.`,
+        nextSteps: [
+          { label: "Record Another", href: "/sellers/returns?open=1" },
+          { label: "Go to Dashboard", href: "/dashboard" },
+        ],
+      });
       toast.success(result.message);
       form.reset(getDefaultValues(options, initialSellerId));
       router.refresh();
-      createDialog?.close();
     });
   }
 
@@ -228,7 +244,7 @@ export function SellerReturnForm({
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          There are no unsold partner lines left to return right now.
+          There are no unsold seller lines left to return right now.
         </p>
         <div className="flex justify-end">
           <Button type="button" variant="outline" onClick={() => createDialog?.close()}>
@@ -251,180 +267,179 @@ export function SellerReturnForm({
     >
       <Card>
         <CardHeader className="p-4 sm:p-6">
-          <CardTitle>Record partner return</CardTitle>
+          <CardTitle>Record seller return</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:space-y-6 sm:p-6 sm:pt-0">
           <FormFeedback
             errors={form.formState.errors}
             submitError={submitError}
+            success={success}
             showValidationSummary={form.formState.submitCount > 0}
           />
-          <div className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 text-sm text-muted-foreground sm:p-4">
-            Select exact lines and quantities. Received partner items go back to the partner, while assigned-from-us items come back into branch owned stock.
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="seller-return-branch">Branch</Label>
-              <Select id="seller-return-branch" {...form.register("branchId")}>
-                {options.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.branchId?.message ? (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.branchId.message}
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="seller-return-seller">Partner</Label>
-              <Select id="seller-return-seller" {...form.register("sellerId")}>
-                <option value="">Select partner</option>
-                {availableSellers.map((seller) => (
-                  <option key={seller.id} value={seller.id}>
-                    {seller.name}
-                  </option>
-                ))}
-              </Select>
-              {form.formState.errors.sellerId?.message ? (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.sellerId.message}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <div className="grid gap-3">
-            <div className="w-full max-w-[18rem] space-y-2 sm:max-w-[19rem]">
-              <Label htmlFor="seller-return-date">Return date</Label>
-              <Input
-                id="seller-return-date"
-                type="datetime-local"
-                {...form.register("returnDate")}
-              />
-              {form.formState.errors.returnDate?.message ? (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.returnDate.message}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Return lines
-              </h3>
-            </div>
-            <div className="space-y-2.5 sm:space-y-4">
-              {fields.map((field, index) => {
-                const selectedLine = options.lines.find((line) => line.id === items[index]?.lineId);
-                const usedLineIds = new Set(
-                  items
-                    .map((item, currentIndex) =>
-                      currentIndex === index ? null : item.lineId,
-                    )
-                    .filter((lineId): lineId is string => Boolean(lineId)),
-                );
-                const selectableLines = availableLines.filter(
-                  (line) => !usedLineIds.has(line.id) || line.id === items[index]?.lineId,
-                );
-
-                return (
-                  <div
-                    key={field.id}
-                    className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
-                        Line {index + 1}
-                      </p>
-                      {fields.length > 1 ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 px-2.5 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
-                          onClick={() => remove(index)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Remove
-                        </Button>
-                      ) : null}
-                    </div>
-                    <div className="grid gap-3 sm:gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(120px,0.9fr)]">
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium sm:text-sm">Open line</Label>
-                        <Select {...form.register(`items.${index}.lineId`)}>
-                          <option value="">Select return line</option>
-                          {selectableLines.map((line) => (
-                            <option key={line.id} value={line.id}>
-                              {line.productName} | {line.sourceLabel} | {line.availableQty} open |{" "}
-                              {line.direction === "TO_PARTNER"
-                                ? "Back to partner"
-                                : "Back to branch"}
-                            </option>
-                          ))}
-                        </Select>
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items?.[index]?.lineId?.message}
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs font-medium sm:text-sm">Qty</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={selectedLine?.availableQty || undefined}
-                          {...form.register(`items.${index}.quantity`)}
-                        />
-                        <p className="text-xs text-destructive">
-                          {form.formState.errors.items?.[index]?.quantity?.message}
-                        </p>
-                      </div>
-                    </div>
-                    {selectedLine ? (
-                      <div className="mt-3 rounded-2xl bg-background/80 p-3 text-[11px] text-muted-foreground sm:text-xs">
-                        <p>
-                          Product:{" "}
-                          <span className="font-medium text-foreground">
-                            {selectedLine.productName}
-                          </span>
-                        </p>
-                        <p className="mt-1">
-                          Source:{" "}
-                          <span className="font-medium text-foreground">
-                            {selectedLine.sourceLabel}
-                          </span>{" "}
-                          on {formatDateTime(selectedLine.sourceDate)}
-                        </p>
-                        <p className="mt-1">
-                          Flow:{" "}
-                          <span className="font-medium text-foreground">
-                            {selectedLine.direction === "TO_PARTNER"
-                              ? "Unsold received stock goes back to the partner."
-                              : "Unsold assigned stock goes back into branch owned stock."}
-                          </span>
-                        </p>
-                      </div>
-                    ) : null}
+          {success ? null : (
+            <>
+              {/* Summary description removed for simplicity */}
+              <div className="grid gap-3 sm:gap-4 sm:grid-cols-3">
+                {userRole === "ADMIN" || options.branches.length > 1 ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="seller-return-branch">Branch</Label>
+                    <Select id="seller-return-branch" {...form.register("branchId")}>
+                      <option value="">Select branch</option>
+                      {options.branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </option>
+                      ))}
+                    </Select>
                   </div>
-                );
-              })}
-            </div>
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!canAppendLine}
-                onClick={handleAppendItem}
-              >
-                <Plus className="h-4 w-4" />
-                Add line
-              </Button>
-            </div>
-          </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Branch</Label>
+                    <div className="flex h-10 w-full items-center rounded-xl border border-input bg-muted px-3 py-2 text-sm text-muted-foreground ring-offset-background">
+                      {options.branches.find((b) => b.id === branchId)?.name ?? "Active Branch"}
+                    </div>
+                    {/* Hidden input to keep branchId in form state */}
+                    <input type="hidden" {...form.register("branchId")} />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="seller-return-seller">Seller</Label>
+                  <Select id="seller-return-seller" {...form.register("sellerId")}>
+                    <option value="">Select seller</option>
+                    {availableSellers.map((seller) => (
+                      <option key={seller.id} value={seller.id}>
+                        {seller.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="seller-return-date">Return date</Label>
+                  <Input
+                    id="seller-return-date"
+                    type="datetime-local"
+                    {...form.register("returnDate")}
+                  />
+                </div>
+              </div>
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Return lines
+                  </h3>
+                </div>
+                <div className="space-y-2.5 sm:space-y-4">
+                  {fields.map((field, index) => {
+                    const selectedLine = options.lines.find((line) => line.id === items[index]?.lineId);
+                    const usedLineIds = new Set(
+                      items
+                        .map((item, currentIndex) =>
+                          currentIndex === index ? null : item.lineId,
+                        )
+                        .filter((lineId): lineId is string => Boolean(lineId)),
+                    );
+                    const selectableLines = availableLines.filter(
+                      (line) => !usedLineIds.has(line.id) || line.id === items[index]?.lineId,
+                    );
+
+                    return (
+                      <div
+                        key={field.id}
+                        className="overflow-hidden rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 dark:border-primary/20 dark:bg-primary/[0.08] sm:p-4"
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
+                            Line {index + 1}
+                          </p>
+                          {index > 0 ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => remove(index)}
+                              title="Remove line"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>                        <div className="grid grid-cols-[1fr_80px] gap-3 sm:gap-4 md:grid-cols-[1fr_120px]">
+                          <div className="space-y-2">
+                            <Label className="text-xs font-medium sm:text-sm">Open line</Label>
+                            <Select
+                              {...form.register(`items.${index}.lineId`, {
+                                onChange: (e) => {
+                                  const lId = e.target.value;
+                                  const line = availableLines.find(l => l.id === lId);
+                                  if (line) {
+                                    form.setValue(`items.${index}.quantity`, 1, { shouldDirty: true });
+                                  }
+                                }
+                              })}
+                            >
+                              <option value="">Select return line</option>
+                              {selectableLines.map((line) => (
+                                <option key={line.id} value={line.id}>
+                                  {line.productName} | {line.availableQty} open |{" "}
+                                  {line.direction === "TO_PARTNER"
+                                    ? "Back to seller"
+                                    : "Back to branch"}
+                                </option>
+                              ))}
+                            </Select>
+                            <p className="mt-1 text-xs text-destructive">
+                              {form.formState.errors.items?.[index]?.lineId?.message}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs font-medium sm:text-sm">Qty</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={selectedLine?.availableQty || undefined}
+                              {...form.register(`items.${index}.quantity`)}
+                            />
+                            {selectedLine ? (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                Max: {selectedLine.availableQty}
+                              </p>
+                            ) : null}
+                            <p className="mt-1 text-xs text-destructive">
+                              {form.formState.errors.items?.[index]?.quantity?.message}
+                            </p>
+                          </div>
+                        </div>
+                        {selectedLine ? (
+                          <div className="mt-3 rounded-2xl bg-background/80 p-3 text-[11px] text-muted-foreground sm:text-xs">
+                            <p>
+                              Product:{" "}
+                              <span className="font-medium text-foreground">
+                                {selectedLine.productName}
+                              </span>
+                            </p>
+                          </div>
+                        ) : null}
+
+
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!canAppendLine}
+                    onClick={handleAppendItem}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add line
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
       <Card>
@@ -433,7 +448,7 @@ export function SellerReturnForm({
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
           <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
                 <p className="text-xs text-muted-foreground">Lines</p>
                 <p className="mt-1 text-2xl font-semibold">{fields.length}</p>
@@ -443,17 +458,14 @@ export function SellerReturnForm({
                 <p className="mt-1 text-2xl font-semibold">{totalQuantity}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">To partner</p>
-                <p className="mt-1 text-2xl font-semibold">{totalToPartner}</p>
+                <p className="text-xs text-muted-foreground">To seller</p>
+                <p className="mt-1 text-2xl font-semibold">{totalToSeller}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Back to stock</p>
+                <p className="mt-1 text-2xl font-semibold">{totalBackToBranch}</p>
               </div>
             </div>
-          </div>
-          <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
-            <p className="text-xs text-muted-foreground">Back to branch stock</p>
-            <p className="mt-1 text-2xl font-semibold">{totalBackToBranch}</p>
-          </div>
-          <div className="rounded-2xl bg-muted/60 p-3 text-sm text-muted-foreground sm:p-4">
-            Use this screen only for unsold quantities. Sold quantities stay in the sold history and, on the received side, remain the basis for partner payable.
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button

@@ -10,6 +10,54 @@ import { prisma } from "@/lib/prisma";
 const oneDayInSeconds = 60 * 60 * 24;
 const authUnavailableMessage =
   "Sign-in is temporarily unavailable. Please try again in a moment.";
+const localhostAuthURL = "http://localhost:3000";
+
+function getVercelURL(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  return value.startsWith("http") ? value : `https://${value}`;
+}
+
+function getAuthBaseURL() {
+  const configuredURL = process.env.BETTER_AUTH_URL;
+
+  if (process.env.NODE_ENV !== "production") {
+    return configuredURL ?? localhostAuthURL;
+  }
+
+  const vercelProductionURL = getVercelURL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  );
+  const vercelDeploymentURL = getVercelURL(process.env.VERCEL_URL);
+  const fallback =
+    configuredURL && !configuredURL.includes("localhost")
+      ? configuredURL
+      : vercelProductionURL ?? vercelDeploymentURL ?? localhostAuthURL;
+
+  return {
+    allowedHosts: [
+      "the-stock-app.vercel.app",
+      "*.vercel.app",
+      ...[configuredURL, vercelProductionURL, vercelDeploymentURL]
+        .map((url) => {
+          if (!url) {
+            return null;
+          }
+
+          try {
+            return new URL(url).host;
+          } catch {
+            return null;
+          }
+        })
+        .filter((host): host is string => Boolean(host)),
+    ],
+    fallback,
+    protocol: "https" as const,
+  };
+}
 
 function normalizePhoneIdentifier(value: string) {
   return value.replace(/\D/g, "");
@@ -66,7 +114,7 @@ function rethrowAuthAvailabilityError(error: unknown): never {
 
 export const auth = betterAuth({
   appName: "Stock Management App",
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  baseURL: getAuthBaseURL(),
   secret:
     process.env.BETTER_AUTH_SECRET ??
     "dev-only-secret-change-this-before-production",
@@ -86,6 +134,13 @@ export const auth = betterAuth({
   session: {
     expiresIn: oneDayInSeconds,
     updateAge: oneDayInSeconds,
+    additionalFields: {
+      activeBranchId: {
+        type: "string",
+        required: false,
+        input: false,
+      },
+    },
   },
   user: {
     additionalFields: {

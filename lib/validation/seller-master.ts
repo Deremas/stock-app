@@ -10,15 +10,15 @@ const optionalPhoneString = z
   .optional()
   .or(z.literal(""))
   .refine((value) => !value || value.length >= 7, {
-    message: "Enter partner phone.",
+    message: "Enter seller phone.",
   });
 
-export const partnerCreateSchema = z.object({
-  fullName: z.string().trim().min(2, "Enter partner name.").max(120, "Partner name is too long."),
+export const sellerCreateSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter seller name.").max(120, "Seller name is too long."),
   phone: optionalPhoneString,
   location: optionalTrimmedString(160, "Location is too long."),
   note: optionalTrimmedString(500, "Note is too long."),
 });
 
-export type PartnerCreateFormInput = z.input<typeof partnerCreateSchema>;
-export type PartnerCreateInput = z.output<typeof partnerCreateSchema>;
+export type SellerCreateFormInput = z.input<typeof sellerCreateSchema>;
+export type SellerCreateInput = z.output<typeof sellerCreateSchema>;

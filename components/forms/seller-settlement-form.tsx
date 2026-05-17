@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -11,6 +11,7 @@ import { FormFeedback } from "@/components/forms/form-feedback";
 import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -18,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createSellerSettlementAction } from "@/lib/actions/seller-settlements";
 import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { SellerSettlementFormOptions } from "@/lib/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatDateForInput } from "@/lib/utils";
 import {
   sellerSettlementSchema,
   type SellerSettlementFormInput,
@@ -48,10 +49,10 @@ function getDefaultValues(
   const firstLine = sellerLines[0] ?? seededLine;
 
   return {
-    sellerId,
+    sellerId: "",
     branchId: firstLine?.branchId ?? "",
     financeAccountId: "",
-    settlementDate: new Date().toISOString().slice(0, 16),
+    settlementDate: formatDateForInput(),
     note: "",
     items: [
       {
@@ -132,7 +133,7 @@ export function SellerSettlementForm({
     }
 
     if (!options.sellers.some((seller) => seller.id === sellerId)) {
-      form.setValue("sellerId", options.sellers[0]?.id ?? "", {
+      form.setValue("sellerId", "", {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -276,13 +277,12 @@ export function SellerSettlementForm({
             submitError={submitError}
             showValidationSummary={form.formState.submitCount > 0}
           />
-          <div className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 text-sm text-muted-foreground sm:p-4">
-            Select exact sold received-partner lines and enter the birr you are paying for each line. Assigned-from-us items are collected from the partner on the collections screen instead.
-          </div>
+          {/* Selection instructions removed for simplicity */}
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="seller-settlement-seller">Partner</Label>
+              <Label htmlFor="seller-settlement-seller">Seller</Label>
               <Select id="seller-settlement-seller" {...form.register("sellerId")}>
+                <option value="">Select seller</option>
                 {options.sellers.map((seller) => (
                   <option key={seller.id} value={seller.id}>
                     {seller.name}
@@ -390,12 +390,16 @@ export function SellerSettlementForm({
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium sm:text-sm">Amount</Label>
-                        <Input
-                          type="number"
-                          min={0.01}
-                          max={selectedLine?.amountDue || undefined}
-                          step="0.01"
-                          {...form.register(`items.${index}.amount`)}
+                        <Controller
+                          control={form.control}
+                          name={`items.${index}.amount`}
+                          render={({ field: { value, onChange, ref } }) => (
+                            <CurrencyInput
+                              value={value as any}
+                              onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                              getInputRef={ref}
+                            />
+                          )}
                         />
                         <p className="text-xs text-destructive">
                           {form.formState.errors.items?.[index]?.amount?.message}
@@ -491,9 +495,7 @@ export function SellerSettlementForm({
               Remaining after payment: {formatCurrency(remainingAfterPayment)}
             </p>
           </div>
-          <div className="rounded-2xl bg-muted/60 p-3 text-sm text-muted-foreground sm:p-4">
-            Pay only sold received-partner lines here. Sold assigned-from-us lines should be collected from the partner on the collections screen.
-          </div>
+          {/* Summary instructions removed for simplicity */}
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"

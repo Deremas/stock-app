@@ -19,10 +19,10 @@ export type DailyCheckSnapshot = {
   metrics: MetricCard[];
   salesRows: SimpleRow[];
   soldItemRows: SimpleRow[];
-  partnerIntakeRows: SimpleRow[];
-  partnerPayoutRows: SimpleRow[];
-  partnerCollectionRows: SimpleRow[];
-  partnerReturnRows: SimpleRow[];
+  sellerIntakeRows: SimpleRow[];
+  sellerPayoutRows: SimpleRow[];
+  sellerCollectionRows: SimpleRow[];
+  sellerReturnRows: SimpleRow[];
 };
 
 export async function getDailyCheckSnapshot(args: {
@@ -43,33 +43,33 @@ export async function getDailyCheckSnapshot(args: {
         { title: "Today's Cash Sales", value: formatCurrency(0), meta: "Daily total" },
         { title: "Today's Bank Sales", value: formatCurrency(0), meta: "Daily total" },
         { title: "Today's Credit Sales", value: formatCurrency(0), meta: "Daily total" },
-        { title: "Partner Items Brought", value: "0" },
-        { title: "Partner Received Sales", value: formatCurrency(0) },
-        { title: "Expected Partner Payable", value: formatCurrency(0) },
-        { title: "Partner Paid Out", value: formatCurrency(0) },
-        { title: "Assigned Partner Sales", value: formatCurrency(0) },
-        { title: "Expected Partner Collection", value: formatCurrency(0) },
-        { title: "Partner Collected", value: formatCurrency(0) },
-        { title: "Partner Returns Qty", value: "0" },
+        { title: "Seller Items Brought", value: "0" },
+        { title: "Seller Received Sales", value: formatCurrency(0) },
+        { title: "Expected Seller Payable", value: formatCurrency(0) },
+        { title: "Seller Paid Out", value: formatCurrency(0) },
+        { title: "Assigned Seller Sales", value: formatCurrency(0) },
+        { title: "Expected Seller Collection", value: formatCurrency(0) },
+        { title: "Seller Collected", value: formatCurrency(0) },
+        { title: "Seller Returns Qty", value: "0" },
         { title: "Today's Expenses", value: formatCurrency(0) },
       ],
       salesRows: [],
       soldItemRows: [],
-      partnerIntakeRows: [],
-      partnerPayoutRows: [],
-      partnerCollectionRows: [],
-      partnerReturnRows: [],
+      sellerIntakeRows: [],
+      sellerPayoutRows: [],
+      sellerCollectionRows: [],
+      sellerReturnRows: [],
     };
   }
 
   const [
     salesRows,
     soldItemRows,
-    partnerIntakeRows,
-    partnerPayoutRows,
-    partnerCollectionRows,
-    partnerReturnRows,
-    partnerSaleAllocations,
+    sellerIntakeRows,
+    sellerPayoutRows,
+    sellerCollectionRows,
+    sellerReturnRows,
+    sellerSaleAllocations,
     expenseAggregate,
   ] = await Promise.all([
     getSalesRows({
@@ -151,10 +151,10 @@ export async function getDailyCheckSnapshot(args: {
     }),
   ]);
 
-  const postedPartnerPayoutRows = partnerPayoutRows.filter(
+  const postedSellerPayoutRows = sellerPayoutRows.filter(
     (row) => row.status === "POSTED",
   );
-  const postedPartnerCollectionRows = partnerCollectionRows.filter(
+  const postedSellerCollectionRows = sellerCollectionRows.filter(
     (row) => row.status === "POSTED",
   );
 
@@ -174,21 +174,23 @@ export async function getDailyCheckSnapshot(args: {
       .filter((row) => row.paymentMethod === "CREDIT")
       .map((row) => toNumber(row.total)),
   );
-  const partnerItemsReceived = sumRows(
-    partnerIntakeRows.map((row) => toNumber(row.quantityBrought)),
+
+  const sellerItemsReceived = sumRows(
+    sellerIntakeRows.map((row) => toNumber(row.quantityBrought)),
   );
-  const partnerReturnQuantity = sumRows(
-    partnerReturnRows.map((row) => toNumber(row.quantity)),
+  const sellerReturnQuantity = sumRows(
+    sellerReturnRows.map((row) => toNumber(row.quantity)),
   );
-  const partnerReceivedSoldAmount = Number(
-    partnerSaleAllocations
+
+  const sellerReceivedSoldAmount = Number(
+    sellerSaleAllocations
       .reduce((sum, allocation) => {
-        const isPartnerOwned =
+        const isSellerOwned =
           allocation.sourceType === "SELLER_CONSIGNMENT" ||
           (allocation.sourceType === "SELLER_ASSIGNED" &&
             Boolean(allocation.sellerAssignmentItem?.sellerIntakeItemId));
 
-        if (!isPartnerOwned) {
+        if (!isSellerOwned) {
           return sum;
         }
 
@@ -199,15 +201,16 @@ export async function getDailyCheckSnapshot(args: {
       }, 0)
       .toFixed(2),
   );
-  const partnerPayableAmount = Number(
-    partnerSaleAllocations
+
+  const sellerPayableAmount = Number(
+    sellerSaleAllocations
       .reduce((sum, allocation) => {
-        const isPartnerOwned =
+        const isSellerOwned =
           allocation.sourceType === "SELLER_CONSIGNMENT" ||
           (allocation.sourceType === "SELLER_ASSIGNED" &&
             Boolean(allocation.sellerAssignmentItem?.sellerIntakeItemId));
 
-        if (!isPartnerOwned) {
+        if (!isSellerOwned) {
           return sum;
         }
 
@@ -215,8 +218,9 @@ export async function getDailyCheckSnapshot(args: {
       }, 0)
       .toFixed(2),
   );
-  const partnerAssignedSoldAmount = Number(
-    partnerSaleAllocations
+
+  const sellerAssignedSoldAmount = Number(
+    sellerSaleAllocations
       .reduce((sum, allocation) => {
         const isAssignedFromUs =
           allocation.sourceType === "SELLER_ASSIGNED" &&
@@ -233,8 +237,9 @@ export async function getDailyCheckSnapshot(args: {
       }, 0)
       .toFixed(2),
   );
-  const partnerCollectionAmount = Number(
-    partnerSaleAllocations
+
+  const sellerCollectionAmount = Number(
+    sellerSaleAllocations
       .reduce((sum, allocation) => {
         const isAssignedFromUs =
           allocation.sourceType === "SELLER_ASSIGNED" &&
@@ -248,20 +253,22 @@ export async function getDailyCheckSnapshot(args: {
       }, 0)
       .toFixed(2),
   );
-  const partnerPaidOutAmount = sumRows(
-    postedPartnerPayoutRows.map((row) => toNumber(row.amount)),
+
+  const sellerPayoutTotal = sumRows(
+    postedSellerPayoutRows.map((row) => toNumber(row.amount)),
   );
-  const partnerCollectedAmount = sumRows(
-    postedPartnerCollectionRows.map((row) => toNumber(row.amount)),
+  const sellerCollectionTotal = sumRows(
+    postedSellerCollectionRows.map((row) => toNumber(row.amount)),
   );
+
   const expenseTotal = toNumber(expenseAggregate._sum.amount);
-  const returnedToPartnerQty = sumRows(
-    partnerReturnRows
+  const returnedToSellerQty = sumRows(
+    sellerReturnRows
       .filter((row) => row.flow === "BACK_TO_PARTNER")
       .map((row) => toNumber(row.quantity)),
   );
   const returnedToBranchQty = sumRows(
-    partnerReturnRows
+    sellerReturnRows
       .filter((row) => row.flow === "BACK_TO_BRANCH")
       .map((row) => toNumber(row.quantity)),
   );
@@ -292,47 +299,47 @@ export async function getDailyCheckSnapshot(args: {
         meta: "Daily total",
       },
       {
-        title: "Partner Items Brought",
-        value: String(partnerItemsReceived),
-        meta: `${partnerIntakeRows.length} intake line(s)`,
+        title: "Seller Items Brought",
+        value: String(sellerItemsReceived),
+        meta: `${sellerIntakeRows.length} intake line(s)`,
       },
       {
-        title: "Partner Received Sales",
-        value: formatCurrency(partnerReceivedSoldAmount),
-        meta: "Sold from received partner stock today",
+        title: "Seller Received Sales",
+        value: formatCurrency(sellerReceivedSoldAmount),
+        meta: "Sold from received seller stock today",
       },
       {
-        title: "Expected Partner Payable",
-        value: formatCurrency(partnerPayableAmount),
+        title: "Expected Seller Payable",
+        value: formatCurrency(sellerPayableAmount),
         tone: "warning",
-        meta: "Calculated from today's received-partner sales",
+        meta: "Calculated from today's received-seller sales",
       },
       {
-        title: "Partner Paid Out",
-        value: formatCurrency(partnerPaidOutAmount),
-        meta: `${postedPartnerPayoutRows.length} payout(s) posted today`,
+        title: "Seller Paid Out",
+        value: formatCurrency(sellerPayoutTotal),
+        meta: `${postedSellerPayoutRows.length} payout(s) posted today`,
       },
       {
-        title: "Assigned Partner Sales",
-        value: formatCurrency(partnerAssignedSoldAmount),
-        meta: "Sold from branch items assigned to partners today",
+        title: "Assigned Seller Sales",
+        value: formatCurrency(sellerAssignedSoldAmount),
+        meta: "Sold from branch items assigned to sellers today",
       },
       {
-        title: "Expected Partner Collection",
-        value: formatCurrency(partnerCollectionAmount),
+        title: "Expected Seller Collection",
+        value: formatCurrency(sellerCollectionAmount),
         tone: "success",
         meta: "Calculated from today's sold assigned lines",
       },
       {
-        title: "Partner Collected",
-        value: formatCurrency(partnerCollectedAmount),
+        title: "Seller Collected",
+        value: formatCurrency(sellerCollectionTotal),
         tone: "success",
-        meta: `${postedPartnerCollectionRows.length} collection(s) posted today`,
+        meta: `${postedSellerCollectionRows.length} collection(s) posted today`,
       },
       {
-        title: "Partner Returns Qty",
-        value: String(partnerReturnQuantity),
-        meta: `${returnedToPartnerQty} to partner, ${returnedToBranchQty} back to branch`,
+        title: "Seller Returns Qty",
+        value: `${returnedToSellerQty + returnedToBranchQty} units`,
+        meta: `${returnedToSellerQty} to seller, ${returnedToBranchQty} back to branch`,
       },
       {
         title: "Today's Expenses",
@@ -342,9 +349,9 @@ export async function getDailyCheckSnapshot(args: {
     ],
     salesRows,
     soldItemRows,
-    partnerIntakeRows,
-    partnerPayoutRows: postedPartnerPayoutRows,
-    partnerCollectionRows: postedPartnerCollectionRows,
-    partnerReturnRows,
+    sellerIntakeRows,
+    sellerPayoutRows: postedSellerPayoutRows,
+    sellerCollectionRows: postedSellerCollectionRows,
+    sellerReturnRows,
   };
 }

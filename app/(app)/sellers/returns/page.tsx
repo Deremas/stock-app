@@ -14,7 +14,8 @@ export default async function Page({ searchParams }: SellerReturnsPageProps) {
   const branchId = getSingleSearchParam(params, "branchId");
   const dateFrom = getSingleSearchParam(params, "dateFrom");
   const dateTo = getSingleSearchParam(params, "dateTo");
-  const initialOpen = getSingleSearchParam(params, "open") === "1";
+  const intakeItemId = getSingleSearchParam(params, "intakeItemId");
+  const assignmentItemId = getSingleSearchParam(params, "assignmentItemId");
 
   const [config, options] = await Promise.all([
     getTablePageConfig("sellersReturns", {
@@ -25,6 +26,8 @@ export default async function Page({ searchParams }: SellerReturnsPageProps) {
     }),
     getSellerReturnFormOptions(sellerId),
   ]);
+
+  const initialOpen = !!(intakeItemId || assignmentItemId);
 
   return (
     <ModalTablePage
@@ -37,6 +40,8 @@ export default async function Page({ searchParams }: SellerReturnsPageProps) {
       <SellerReturnForm
         options={options}
         {...(sellerId ? { initialSellerId: sellerId } : {})}
+        {...(intakeItemId ? { initialIntakeItemId: intakeItemId } : {})}
+        {...(assignmentItemId ? { initialAssignmentItemId: assignmentItemId } : {})}
       />
     </ModalTablePage>
   );

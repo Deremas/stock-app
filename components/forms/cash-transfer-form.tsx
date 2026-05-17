@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -17,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createCashTransferAction } from "@/lib/actions/cash-transfers";
 import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { CashTransferFormOptions } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDateForInput } from "@/lib/utils";
 import {
   cashTransferSchema,
   type CashTransferFormInput,
@@ -46,7 +47,7 @@ function getDefaultValues(
     fromAccountId: selectedCashAccount?.id ?? "",
     toAccountId: branchBankAccount?.id ?? "",
     amount: 0,
-    transferDate: new Date().toISOString().slice(0, 16),
+    transferDate: formatDateForInput(),
     note: "",
   };
 }
@@ -81,8 +82,9 @@ export function CashTransferForm({
     cashAccounts.find((account) => account.id === fromAccountId) ?? cashAccounts[0];
 
   useEffect(() => {
-    if (!cashAccounts.some((account) => account.id === fromAccountId)) {
-      form.setValue("fromAccountId", cashAccounts[0]?.id ?? "", {
+    const newValue = cashAccounts[0]?.id ?? "";
+    if (fromAccountId !== newValue && !cashAccounts.some((account) => account.id === fromAccountId)) {
+      form.setValue("fromAccountId", newValue, {
         shouldDirty: true,
       });
     }
@@ -91,8 +93,9 @@ export function CashTransferForm({
   useEffect(() => {
     const toAccountId = form.getValues("toAccountId");
 
-    if (!bankAccounts.some((account) => account.id === toAccountId)) {
-      form.setValue("toAccountId", bankAccounts[0]?.id ?? "", {
+    const newValue = bankAccounts[0]?.id ?? "";
+    if (toAccountId !== newValue && !bankAccounts.some((account) => account.id === toAccountId)) {
+      form.setValue("toAccountId", newValue, {
         shouldDirty: true,
       });
     }
@@ -223,13 +226,17 @@ export function CashTransferForm({
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="cash-transfer-amount">Amount</Label>
-              <Input
-                id="cash-transfer-amount"
-                type="number"
-                min={0.01}
-                max={selectedCashAccount?.balance ?? undefined}
-                step="0.01"
-                {...form.register("amount")}
+              <Controller
+                control={form.control}
+                name="amount"
+                render={({ field: { value, onChange, ref } }) => (
+                  <CurrencyInput
+                    id="cash-transfer-amount"
+                    value={value as any}
+                    onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                    getInputRef={ref}
+                  />
+                )}
               />
               <p className="text-xs text-destructive">
                 {form.formState.errors.amount?.message}

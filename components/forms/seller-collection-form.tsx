@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -11,13 +11,14 @@ import { FormFeedback } from "@/components/forms/form-feedback";
 import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createSellerCollectionAction } from "@/lib/actions/seller-collections";
 import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { SellerCollectionFormOptions } from "@/lib/types";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatDateForInput } from "@/lib/utils";
 import {
   sellerCollectionSchema,
   type SellerCollectionFormInput,
@@ -50,7 +51,7 @@ function getDefaultValues(
     sellerId,
     branchId: firstLine?.branchId ?? "",
     financeAccountId: "",
-    collectionDate: new Date().toISOString().slice(0, 16),
+    collectionDate: formatDateForInput(),
     note: "",
     items: [
       {
@@ -120,7 +121,7 @@ export function SellerCollectionForm({
     }
 
     if (!options.sellers.some((seller) => seller.id === sellerId)) {
-      form.setValue("sellerId", options.sellers[0]?.id ?? "", {
+      form.setValue("sellerId", "", {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -265,13 +266,12 @@ export function SellerCollectionForm({
             submitError={submitError}
             showValidationSummary={form.formState.submitCount > 0}
           />
-          <div className="rounded-2xl border border-primary/15 bg-primary/[0.035] p-3 text-sm text-muted-foreground sm:p-4">
-            Select exact sold lines to collect from the partner. This page is only for items we issued from branch stock. Unsold assigned items return from the Returns page.
-          </div>
+          {/* Selection instructions removed for simplicity */}
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="seller-collection-seller">Partner</Label>
+              <Label htmlFor="seller-collection-seller">Seller</Label>
               <Select id="seller-collection-seller" {...form.register("sellerId")}>
+                <option value="">Select seller</option>
                 {options.sellers.map((seller) => (
                   <option key={seller.id} value={seller.id}>
                     {seller.name}
@@ -348,16 +348,16 @@ export function SellerCollectionForm({
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary/85">
                         Line {index + 1}
                       </p>
-                      {fields.length > 1 ? (
+                      {index > 0 ? (
                         <Button
                           type="button"
-                          variant="outline"
+                          variant="ghost"
                           size="icon"
-                          className="h-8 w-8 shrink-0 rounded-lg border-destructive/35 bg-background/80 text-destructive shadow-sm hover:bg-destructive/10 hover:text-destructive"
+                          className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
                           onClick={() => remove(index)}
+                          title="Remove line"
                         >
                           <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Remove line</span>
                         </Button>
                       ) : null}
                     </div>
@@ -379,12 +379,16 @@ export function SellerCollectionForm({
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs font-medium sm:text-sm">Amount</Label>
-                        <Input
-                          type="number"
-                          min={0.01}
-                          max={selectedLine?.amountDue || undefined}
-                          step="0.01"
-                          {...form.register(`items.${index}.amount`)}
+                        <Controller
+                          control={form.control}
+                          name={`items.${index}.amount`}
+                          render={({ field: { value, onChange, ref } }) => (
+                            <CurrencyInput
+                              value={value as any}
+                              onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                              getInputRef={ref}
+                            />
+                          )}
                         />
                         <p className="text-xs text-destructive">
                           {form.formState.errors.items?.[index]?.amount?.message}
@@ -464,9 +468,7 @@ export function SellerCollectionForm({
             <p className="text-xs text-muted-foreground">Total collection</p>
             <p className="mt-1 text-3xl font-semibold">{formatCurrency(totalAmount)}</p>
           </div>
-          <div className="rounded-2xl bg-muted/60 p-3 text-sm text-muted-foreground sm:p-4">
-            Collect only sold assigned lines here. Unsold assigned quantities should be posted from Returns so they move back into branch stock instead of staying open with the partner.
-          </div>
+          {/* Summary instructions removed for simplicity */}
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"

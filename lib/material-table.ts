@@ -15,7 +15,7 @@ function getHeaderWidth(header: string) {
     (max, word) => Math.max(max, word.length),
     0,
   );
-  const controlAllowance = 68;
+  const controlAllowance = 84;
 
   return Math.max(
     108,
@@ -42,6 +42,14 @@ function ensureHeaderFits(
 }
 
 export function getSimpleColumnSizing(column: SimpleColumn) {
+  if (column.size) {
+    return ensureHeaderFits(column.header, {
+      size: column.size,
+      minSize: column.size,
+      maxSize: column.size * 1.5,
+    });
+  }
+
   const key = column.key.toLowerCase();
   const header = column.header.toLowerCase();
   const isIdentityText =
@@ -90,9 +98,9 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
 
   if (column.type === "number") {
     return ensureHeaderFits(column.header, {
-      size: isQuantityField ? 144 : 124,
-      minSize: isQuantityField ? 132 : 108,
-      maxSize: isQuantityField ? 184 : 160,
+      size: isQuantityField ? 152 : 128,
+      minSize: isQuantityField ? 140 : 112,
+      maxSize: isQuantityField ? 192 : 164,
     });
   }
 
@@ -106,9 +114,9 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
 
   if (column.type === "status") {
     return ensureHeaderFits(column.header, {
-      size: 122,
-      minSize: 106,
-      maxSize: 152,
+      size: 100,
+      minSize: 90,
+      maxSize: 140,
     });
   }
 
@@ -122,9 +130,9 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
 
   if (isIdentityText) {
     return ensureHeaderFits(column.header, {
-      size: 188,
-      minSize: 150,
-      maxSize: 280,
+      size: 320,
+      minSize: 220,
+      maxSize: 480,
     });
   }
 
@@ -205,17 +213,15 @@ export const materialTableHeadCellSx = {
   color: textColor,
   borderBottom: `1px solid ${borderColor}`,
   fontWeight: 700,
-  paddingBlock: "0.9rem",
-  paddingInline: "0.7rem",
+  paddingBlock: "0.75rem",
+  paddingInline: "0.5rem",
   whiteSpace: "nowrap",
   overflow: "visible",
-  textAlign: "center",
   "& .MuiButtonBase-root": {
     color: textColor,
   },
   "& .Mui-TableHeadCell-Content": {
     overflow: "visible",
-    justifyContent: "center",
     width: "100%",
     minWidth: 0,
     gap: "0.35rem",
@@ -224,17 +230,14 @@ export const materialTableHeadCellSx = {
   "& .Mui-TableHeadCell-Content-Wrapper": {
     overflow: "visible",
     textOverflow: "clip",
-    textAlign: "center",
     minWidth: 0,
   },
   "& .Mui-TableHeadCell-Content-Labels": {
-    justifyContent: "center",
     alignItems: "center",
     gap: "0.25rem",
     minWidth: 0,
   },
   "& .MuiTableSortLabel-root": {
-    justifyContent: "center",
     gap: "0.2rem",
     minWidth: 0,
   },
@@ -250,6 +253,18 @@ export const materialTableHeadCellSx = {
   },
   '&[data-pinned="left"], &[data-pinned="right"], &[data-pinned="true"]': {
     backgroundColor: surfaceColor,
+    position: "relative" as const,
+    zIndex: 1,
+    "&::after": {
+      content: '""',
+      position: "absolute" as const,
+      top: 0,
+      right: 0,
+      bottom: -1,
+      width: "1px",
+      backgroundColor: borderColor,
+      boxShadow: "2px 0 8px rgba(15, 23, 42, 0.05)",
+    },
   },
 };
 
@@ -257,9 +272,22 @@ export const materialTableBodyCellSx = {
   backgroundColor: "transparent",
   color: textColor,
   borderBottom: `1px solid ${borderColor}`,
-  paddingBlock: "0.85rem",
+  paddingBlock: "0.6rem",
+  paddingInline: "0.5rem",
   '&[data-pinned="left"], &[data-pinned="right"], &[data-pinned="true"]': {
     backgroundColor: surfaceColor,
+    position: "relative" as const,
+    zIndex: 1,
+    "&::after": {
+      content: '""',
+      position: "absolute" as const,
+      top: 0,
+      right: 0,
+      bottom: -1,
+      width: "1px",
+      backgroundColor: borderColor,
+      boxShadow: "2px 0 8px rgba(15, 23, 42, 0.05)",
+    },
   },
 };
 
@@ -279,11 +307,15 @@ export const materialTablePropsSx = {
 };
 
 export const materialTableContainerSx = {
-  maxHeight: "62vh",
+  maxHeight: {
+    xs: "calc(100vh - 280px)",
+    sm: "64vh",
+  },
   maxWidth: "100%",
   overflowX: "auto",
   borderRadius: "1rem",
   backgroundColor: "transparent",
+  scrollbarWidth: "thin" as const,
 };
 
 export const materialTableSearchTextFieldProps = {

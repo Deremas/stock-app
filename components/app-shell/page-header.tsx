@@ -7,9 +7,9 @@ export function PageHeader({
   description: string;
 }) {
   return (
-    <>
-      <h1 className="sr-only">{title}</h1>
-      <p className="max-w-full break-words text-sm text-muted-foreground">{description}</p>
-    </>
+    <div className="space-y-1.5 min-w-0">
+      <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{title}</h2>
+      <p className="max-w-[720px] text-[13px] leading-relaxed text-muted-foreground sm:text-sm">{description}</p>
+    </div>
   );
 }

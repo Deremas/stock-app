@@ -1,16 +1,22 @@
 import { prisma } from "@/lib/prisma";
+import type { AppRole } from "@/lib/rbac";
 import type { OwnedStockBatchOption } from "@/lib/types";
 
 function toNumber(value: unknown) {
   return Number(value ?? 0);
 }
 
-export async function getOwnedStockBatches(input: {
-  branchId?: string;
-  branchIds?: string[];
-  productId?: string;
-  batchIds?: string[];
-} = {}): Promise<OwnedStockBatchOption[]> {
+export async function getOwnedStockBatches(
+  input: {
+    branchId?: string;
+    branchIds?: string[];
+    productId?: string;
+    batchIds?: string[];
+    role?: AppRole;
+  } = {},
+): Promise<OwnedStockBatchOption[]> {
+  const role = input.role ?? "SALES";
+  const isAdmin = role === "ADMIN";
   const [purchaseBatches, transferBatches] = await Promise.all([
     prisma.purchaseItem.findMany({
       where: {

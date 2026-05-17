@@ -11,6 +11,9 @@ type TransfersPageProps = {
 export default async function Page({ searchParams }: TransfersPageProps) {
   const params = await searchParams;
   const initialOpen = getSingleSearchParam(params, "open") === "1";
+  const initialProductId = getSingleSearchParam(params, "productId");
+  const initialSourceBranchId = getSingleSearchParam(params, "fromBranchId");
+
   const [config, options] = await Promise.all([
     getTablePageConfig("inventoryTransfers"),
     getTransferFormOptions(),
@@ -24,7 +27,11 @@ export default async function Page({ searchParams }: TransfersPageProps) {
       dialogDescription="Move stock between branches and keep both branch balances in sync."
       initialOpen={initialOpen}
     >
-      <TransferForm options={options} />
+      <TransferForm
+        options={options}
+        {...(initialProductId ? { initialProductId } : {})}
+        {...(initialSourceBranchId ? { initialSourceBranchId } : {})}
+      />
     </ModalTablePage>
   );
 }

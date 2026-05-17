@@ -114,3 +114,29 @@ a {
 .dark ::selection {
   background: rgba(56, 189, 248, 0.24);
 }
+
+/* Hide number input spin buttons globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Make datetime-local calendar picker clearly visible and clickable */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  background-color: hsl(var(--primary) / 0.1);
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 1;
+  /* tint the native icon to match primary color */
+  filter: invert(27%) sepia(71%) saturate(800%) hue-rotate(170deg) brightness(90%);
+}
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  background-color: hsl(var(--primary) / 0.2);
+}

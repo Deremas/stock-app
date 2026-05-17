@@ -26,8 +26,8 @@ export type DashboardSnapshot = {
   topProducts: TopProductCardItem[];
 };
 
-async function getLowStockRows() {
-  const stockSummary = await getStockSummaryRows();
+async function getLowStockRows(branchId?: string) {
+  const stockSummary = await getStockSummaryRows(branchId);
 
   return stockSummary
     .filter(
@@ -49,7 +49,10 @@ async function getLowStockRows() {
     );
 }
 
-export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnapshot> {
+export async function getDashboardSnapshot(
+  role: AppRole,
+  branchId?: string,
+): Promise<DashboardSnapshot> {
   noStore();
 
   const todayStart = startOfDay(new Date());
@@ -75,6 +78,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.sale.findMany({
       where: {
         status: "COMPLETED",
+        ...(branchId ? { branchId } : {}),
         soldAt: {
           gte: todayStart,
           lte: todayEnd,
@@ -89,6 +93,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
       where: {
         sale: {
           status: "COMPLETED",
+          ...(branchId ? { branchId } : {}),
           soldAt: {
             gte: todayStart,
             lte: todayEnd,
@@ -112,11 +117,12 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
         },
       },
     }),
-    getStockSummaryRows(),
-    getLowStockRows(),
+    getStockSummaryRows(branchId),
+    getLowStockRows(branchId),
     prisma.sale.aggregate({
       where: {
         status: "COMPLETED",
+        ...(branchId ? { branchId } : {}),
       },
       _sum: {
         amountDue: true,
@@ -125,16 +131,18 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.purchase.aggregate({
       where: {
         status: "POSTED",
+        ...(branchId ? { branchId } : {}),
       },
       _sum: {
         amountDue: true,
       },
     }),
-    getOpenSellerPayablesBySeller(),
-    getOpenSellerCollectionsBySeller(),
+    getOpenSellerPayablesBySeller(branchId),
+    getOpenSellerCollectionsBySeller(branchId),
     prisma.sale.findMany({
       where: {
         status: "COMPLETED",
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: {
         soldAt: "desc",
@@ -155,6 +163,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.purchase.findMany({
       where: {
         status: "POSTED",
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: {
         purchasedAt: "desc",
@@ -175,6 +184,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.expense.findMany({
       where: {
         status: "POSTED",
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: {
         expenseDate: "desc",
@@ -195,6 +205,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.sellerSettlement.findMany({
       where: {
         status: "POSTED",
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: {
         settlementDate: "desc",
@@ -215,6 +226,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.sellerCollection.findMany({
       where: {
         status: "POSTED",
+        ...(branchId ? { branchId } : {}),
       },
       orderBy: {
         collectionDate: "desc",
@@ -235,6 +247,7 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
     prisma.sale.findMany({
       where: {
         status: "COMPLETED",
+        ...(branchId ? { branchId } : {}),
         soldAt: {
           gte: lastSevenStart,
           lte: todayEnd,
@@ -399,12 +412,6 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
       meta: "Daily total",
     },
     {
-      title: "Today's Profit",
-      value: formatCurrency(todayProfit),
-      tone: todayProfit > 0 ? "success" : "default",
-      meta: "Gross profit in birr",
-    },
-    {
       title: "Today's Bank Sales",
       value: formatCurrency(todayBankSales),
       meta: "Daily total",
@@ -428,6 +435,13 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
   ];
 
   if (role === "ADMIN") {
+    metrics.splice(2, 0, {
+      title: "Today's Profit",
+      value: formatCurrency(todayProfit),
+      tone: todayProfit > 0 ? "success" : "default",
+      meta: "Gross profit in birr",
+    });
+
     metrics.push(
       {
         title: "Total Stock Value",
@@ -439,12 +453,12 @@ export async function getDashboardSnapshot(role: AppRole): Promise<DashboardSnap
         tone: "danger",
       },
       {
-        title: "Partner Payables",
+        title: "Seller Payables",
         value: formatCurrency(sellerPayableTotal),
         tone: "warning",
       },
       {
-        title: "Partner Receivables",
+        title: "Seller Receivables",
         value: formatCurrency(sellerCollectionTotal),
         tone: "success",
       },

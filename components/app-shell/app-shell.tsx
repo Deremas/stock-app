@@ -45,7 +45,7 @@ export function AppShell({
       <div
         className={cn(
           "flex h-screen min-w-0 max-w-full flex-1 flex-col overflow-y-auto transition-[margin] duration-200",
-          desktopSidebarOpen ? "lg:ml-72" : "lg:ml-0",
+          desktopSidebarOpen ? "lg:ml-64" : "lg:ml-0",
         )}
       >
         <AppHeader

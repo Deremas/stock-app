@@ -24,13 +24,13 @@ export function TablePage({ config }: { config: TablePageConfig }) {
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <PageHeader {...headerProps} />
         </div>
         {config.actionLabel && config.actionHref ? (
-          <div className="justify-self-end">
-            <Button asChild size="sm">
+          <div className="flex shrink-0 items-center gap-2">
+            <Button asChild size="sm" className="rounded-full px-5 shadow-lg">
               <Link href={config.actionHref as Route}>{config.actionLabel}</Link>
             </Button>
           </div>

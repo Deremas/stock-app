@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -17,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createExpenseAction } from "@/lib/actions/expenses";
 import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { ExpenseFormOptions } from "@/lib/types";
+import { formatDateForInput } from "@/lib/utils";
 import {
   expenseSchema,
   type ExpenseFormInput,
@@ -29,12 +31,12 @@ type ExpenseFormProps = {
 
 function getDefaultValues(options: ExpenseFormOptions): ExpenseFormInput {
   return {
-    branchId: options.branches[0]?.id ?? "",
+    branchId: "",
     financeAccountId: "",
-    categoryName: options.categoryNames[0] ?? "",
+    categoryName: "",
     name: "",
     amount: 0,
-    expenseDate: new Date().toISOString().slice(0, 16),
+    expenseDate: formatDateForInput(),
     note: "",
   };
 }
@@ -60,8 +62,9 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
   useEffect(() => {
     const financeAccountId = form.getValues("financeAccountId");
 
-    if (!availableAccounts.some((account) => account.id === financeAccountId)) {
-      form.setValue("financeAccountId", availableAccounts[0]?.id ?? "", {
+    const newValue = availableAccounts[0]?.id ?? "";
+    if (financeAccountId !== newValue && !availableAccounts.some((account) => account.id === financeAccountId)) {
+      form.setValue("financeAccountId", newValue, {
         shouldDirty: true,
       });
     }
@@ -130,6 +133,7 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
             <div className="space-y-2">
               <Label htmlFor="expense-branch">Branch</Label>
               <Select id="expense-branch" {...form.register("branchId")}>
+                <option value="">Select branch</option>
                 {options.branches.map((branch) => (
                   <option key={branch.id} value={branch.id}>
                     {branch.code} - {branch.name}
@@ -164,12 +168,17 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="expense-amount">Amount</Label>
-              <Input
-                id="expense-amount"
-                type="number"
-                min={0.01}
-                step="0.01"
-                {...form.register("amount")}
+              <Controller
+                control={form.control}
+                name="amount"
+                render={({ field: { value, onChange, ref } }) => (
+                  <CurrencyInput
+                    id="expense-amount"
+                    value={value as any}
+                    onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                    getInputRef={ref}
+                  />
+                )}
               />
               <p className="text-xs text-destructive">
                 {form.formState.errors.amount?.message}
@@ -217,10 +226,7 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
           <CardTitle>Category tracking</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            You can pick an existing category or type a new one. New category names are created
-            automatically when the expense is saved.
-          </div>
+          {/* Category tracking descriptions removed for simplicity */}
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button
               type="button"

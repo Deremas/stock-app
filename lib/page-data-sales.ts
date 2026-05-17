@@ -11,6 +11,7 @@ type SalesFilters = {
   branchId?: string;
   dateFrom?: string;
   dateTo?: string;
+  type?: "PARTNER" | "WALK_IN";
 };
 
 function getSoldAtRangeFilter(filters: Pick<SalesFilters, "dateFrom" | "dateTo">) {
@@ -59,6 +60,31 @@ function createRowAction(action: RowActionConfig) {
   return action;
 }
 
+export async function getCustomerMetrics(customerId: string, branchId?: string) {
+  const stats = await prisma.sale.aggregate({
+    where: {
+      customerId,
+      ...(branchId ? { branchId } : {}),
+      status: "COMPLETED",
+    },
+    _sum: {
+      total: true,
+      amountPaid: true,
+      amountDue: true,
+    },
+    _max: {
+      soldAt: true,
+    },
+  });
+
+  return {
+    totalPurchases: toNumber(stats._sum.total),
+    totalPaid: toNumber(stats._sum.amountPaid),
+    creditBalance: toNumber(stats._sum.amountDue),
+    lastPurchaseAt: stats._max.soldAt,
+  };
+}
+
 export async function getSalesRows(filters: SalesFilters = {}) {
   const soldAt = getSoldAtRangeFilter(filters);
 
@@ -67,6 +93,8 @@ export async function getSalesRows(filters: SalesFilters = {}) {
       ...(filters.customerId ? { customerId: filters.customerId } : {}),
       ...(filters.branchId ? { branchId: filters.branchId } : {}),
       ...(soldAt ? { soldAt } : {}),
+      ...(filters.type === "PARTNER" ? { customerId: { not: null } } : {}),
+      ...(filters.type === "WALK_IN" ? { customerId: null } : {}),
     },
     orderBy: {
       soldAt: "desc",
@@ -96,6 +124,20 @@ export async function getSalesRows(filters: SalesFilters = {}) {
         total: toNumber(sale.total),
         amountDue: toNumber(sale.amountDue),
         soldAt: sale.soldAt.toISOString(),
+        __actions: [
+          createRowAction({
+            key: "view",
+            label: "View",
+            href: `/sales/sales-list/${sale.id}`,
+            icon: "view",
+          }),
+          createRowAction({
+            key: "print",
+            label: "Print",
+            href: `/print/sale/${sale.id}`,
+            icon: "print",
+          }),
+        ],
       }) satisfies SimpleRow,
   );
 }

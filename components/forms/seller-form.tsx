@@ -6,8 +6,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
-import { createPartnerAction } from "@/lib/actions/partners";
-import { partnerCreateSchema, type PartnerCreateFormInput } from "@/lib/validation/partner";
+import { createSellerAction } from "@/lib/actions/seller-master";
+import { sellerCreateSchema, type SellerCreateFormInput } from "@/lib/validation/seller-master";
 import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import { Button } from "@/components/ui/button";
@@ -15,27 +15,27 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-type PartnerFormProps = {
-  onSuccess?: (partner: { id: string; name: string }) => void;
+type SellerFormProps = {
+  onSuccess?: (seller: { id: string; name: string }) => void;
   onCancel?: () => void;
   submitLabel?: string;
   refreshAfterSuccess?: boolean;
   closeCreateDialogOnSuccess?: boolean;
 };
 
-export function PartnerForm({
+export function SellerForm({
   onSuccess,
   onCancel,
-  submitLabel = "Save partner",
+  submitLabel = "Save seller",
   refreshAfterSuccess = true,
   closeCreateDialogOnSuccess = false,
-}: PartnerFormProps) {
+}: SellerFormProps) {
   const router = useRouter();
   const createDialog = useCreateDialog();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const form = useForm<PartnerCreateFormInput>({
-    resolver: zodResolver(partnerCreateSchema),
+  const form = useForm<SellerCreateFormInput>({
+    resolver: zodResolver(sellerCreateSchema),
     defaultValues: {
       fullName: "",
       phone: "",
@@ -54,12 +54,12 @@ export function PartnerForm({
     });
   }
 
-  function onSubmit(values: PartnerCreateFormInput) {
+  function onSubmit(values: SellerCreateFormInput) {
     startTransition(async () => {
       setSubmitError(null);
-      const result = await createPartnerAction(values);
+      const result = await createSellerAction(values);
 
-      if (!result.success || !result.partner) {
+      if (!result.success || !result.seller) {
         setSubmitError(result.message);
         toast.error(result.message);
         return;
@@ -70,7 +70,7 @@ export function PartnerForm({
       if (refreshAfterSuccess) {
         router.refresh();
       }
-      onSuccess?.(result.partner);
+      onSuccess?.(result.seller);
       if (closeCreateDialogOnSuccess) {
         createDialog?.close();
       }
@@ -94,17 +94,17 @@ export function PartnerForm({
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="partner-full-name">Partner name</Label>
+          <Label htmlFor="seller-full-name">Seller name</Label>
           <Input
-            id="partner-full-name"
-            placeholder="Partner name"
+            id="seller-full-name"
+            placeholder="Seller name"
             {...form.register("fullName")}
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="partner-phone">Phone (optional)</Label>
+          <Label htmlFor="seller-phone">Phone (optional)</Label>
           <Input
-            id="partner-phone"
+            id="seller-phone"
             type="tel"
             inputMode="tel"
             autoComplete="tel"
@@ -114,19 +114,19 @@ export function PartnerForm({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor="partner-location">Location</Label>
+        <Label htmlFor="seller-location">Location</Label>
         <Input
-          id="partner-location"
+          id="seller-location"
           placeholder="Area, shop, or address"
           {...form.register("location")}
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="partner-note">Note</Label>
+        <Label htmlFor="seller-note">Note</Label>
         <Textarea
-          id="partner-note"
+          id="seller-note"
           rows={3}
-          placeholder="Optional partner note"
+          placeholder="Optional seller note"
           {...form.register("note")}
         />
       </div>

@@ -99,28 +99,28 @@ export default async function Page() {
           title="Today's Partner Intakes"
           description="Items partners brought today, with sold, returned, and remaining quantities."
           columns={intakeColumns}
-          rows={snapshot.partnerIntakeRows}
+          rows={snapshot.sellerIntakeRows}
           exportFileName="daily-check-partner-intakes"
         />
         <DailyCheckTableCard
           title="Today's Partner Payouts"
           description="Birr paid out today for sold received-partner items."
           columns={payoutColumns}
-          rows={snapshot.partnerPayoutRows}
+          rows={snapshot.sellerPayoutRows}
           exportFileName="daily-check-partner-payouts"
         />
         <DailyCheckTableCard
           title="Today's Partner Collections"
           description="Birr collected today for sold assigned items."
           columns={collectionColumns}
-          rows={snapshot.partnerCollectionRows}
+          rows={snapshot.sellerCollectionRows}
           exportFileName="daily-check-partner-collections"
         />
         <DailyCheckTableCard
           title="Today's Partner Returns"
           description="Unsold items returned either back to the partner or back into branch stock today."
           columns={returnColumns}
-          rows={snapshot.partnerReturnRows}
+          rows={snapshot.sellerReturnRows}
           exportFileName="daily-check-partner-returns"
         />
       </div>

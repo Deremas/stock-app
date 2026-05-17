@@ -51,27 +51,27 @@ export function AppSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[60] flex w-72 max-w-[calc(100vw-1rem)] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-2xl transition-transform duration-200 lg:z-40 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-[60] flex w-64 max-w-[calc(100vw-2rem)] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl transition-transform duration-200 lg:z-40 lg:shadow-none",
           desktopOpen ? "lg:translate-x-0" : "lg:-translate-x-full",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-4">
-          <div>
-            <p className="text-sm font-semibold tracking-tight">Stock Management App</p>
-            <p className="text-xs text-sidebar-foreground/65">Simple daily operations</p>
+        <div className="flex items-center justify-between border-b border-sidebar-border/40 px-5 py-4">
+          <div className="space-y-0.5">
+            <p className="text-sm font-bold tracking-tight">StockPro</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sidebar-foreground/40">Management</p>
           </div>
           <button
             type="button"
-            className="rounded-lg p-2 text-sidebar-foreground/70 transition hover:bg-accent/80 hover:text-sidebar-foreground lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-sidebar-accent/10 lg:hidden"
             onClick={onCloseMobile}
             aria-label="Close sidebar"
           >
-            <X className="h-6 w-6" />
+            <X className="h-4 w-4" />
           </button>
         </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <div className="space-y-2">
+        <nav className="flex-1 overflow-y-auto p-3">
+          <div className="space-y-0.5">
             {entries.map((entry) => {
               const Icon = getIcon(entry.icon);
 

@@ -70,6 +70,7 @@ async function getCurrentBranchScope() {
   return {
     activeBranchId: user?.activeBranchId ?? "",
     branches: user?.branches ?? [],
+    role: user?.role ?? "SALES",
   };
 }
 
@@ -141,10 +142,14 @@ async function getSaleBranchStockOptions(
     return [];
   }
 
+  // Retrieve the current branch scope to get the user's role
+  const scope = await getCurrentBranchScope();
+
   const [stockSummary, ownedBatches, sellerIntakeItems, sellerAssignmentItems] =
     await Promise.all([
       getStockSummaryRows(),
-      getOwnedStockBatches({ branchIds }),
+      // Pass the role from the scope when fetching owned stock batches
+      getOwnedStockBatches({ branchIds, role: scope.role }),
       prisma.sellerIntakeItem.findMany({
         where: {
           sellerIntake: {
@@ -200,13 +205,7 @@ async function getSaleBranchStockOptions(
       }),
     ]);
 
-  const defaultPriceMap = new Map<
-    string,
-    {
-      defaultUnitPrice: number;
-      dateValue: number;
-    }
-  >();
+  const defaultPriceMap = new Map<string, { defaultUnitPrice: number; dateValue: number }>();
 
   function setDefaultPrice(args: {
     branchId: string;
@@ -275,18 +274,16 @@ async function getSaleBranchStockOptions(
     .filter(
       (row) => branchIds.includes(row.branchId) && row.totalQty > 0,
     )
-    .map(
-      (row) =>
-        ({
-          branchId: row.branchId,
-          productId: row.productId,
-          availableQty: row.totalQty,
-          defaultUnitPrice:
-            defaultPriceMap.get(`${row.branchId}:${row.productId}`)?.defaultUnitPrice ??
-            0,
-        }) satisfies SaleBranchStockOption,
-    );
+    .map((row) => ({
+        branchId: row.branchId,
+        productId: row.productId,
+        availableQty: row.totalQty,
+        defaultUnitPrice:
+          defaultPriceMap.get(`${row.branchId}:${row.productId}`)?.defaultUnitPrice ??
+          0,
+      }) satisfies SaleBranchStockOption);
 }
+
 
 export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
   const scope = await getCurrentBranchScope();
@@ -404,18 +401,21 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
 
 export async function getSellerIntakeFormOptions(): Promise<SellerIntakeFormOptions> {
   const scope = await getCurrentBranchScope();
-  const sellers = await prisma.seller.findMany({
-    where: {
-      isActive: true,
-    },
-    orderBy: {
-      fullName: "asc",
-    },
-    select: {
-      id: true,
-      fullName: true,
-    },
-  });
+  const [sellers, products] = await Promise.all([
+    prisma.seller.findMany({
+      where: {
+        isActive: true,
+      },
+      orderBy: {
+        fullName: "asc",
+      },
+      select: {
+        id: true,
+        fullName: true,
+      },
+    }),
+    getActiveProductOptions(),
+  ]);
 
   return {
     branches: scope.branches,
@@ -423,6 +423,7 @@ export async function getSellerIntakeFormOptions(): Promise<SellerIntakeFormOpti
       id: seller.id,
       name: seller.fullName,
     })),
+    products,
   };
 }
 
@@ -443,6 +444,7 @@ export async function getSellerAssignmentFormOptions(): Promise<SellerAssignment
     }),
     getOwnedStockBatches({
       branchIds: scope.branches.map((branch) => branch.id),
+      role: scope.role,
     }),
   ]);
 
@@ -577,6 +579,7 @@ export async function getSellerReturnFormOptions(
         sourceDate: item.bringingDate.toISOString(),
         availableQty,
         direction: "TO_PARTNER" as const,
+        intakeItemId: item.id,
       };
     })
     .filter((line) => line.availableQty > 0);
@@ -598,6 +601,7 @@ export async function getSellerReturnFormOptions(
         sourceDate: item.assignmentDate.toISOString(),
         availableQty,
         direction: "BACK_TO_BRANCH" as const,
+        assignmentItemId: item.id,
       };
     })
     .filter((line) => line.availableQty > 0);
@@ -650,9 +654,11 @@ export async function getTransferFormOptions(): Promise<TransferFormOptions> {
     }),
   ]);
 
+  const inStockProductIds = new Set(ownedBatches.map((batch) => batch.productId));
+
   return {
     branches: scope.branches,
-    products,
+    products: products.filter((product) => inStockProductIds.has(product.id)),
     ownedBatches,
   };
 }

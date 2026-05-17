@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { FormFeedback } from "@/components/forms/form-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -176,12 +177,17 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
             )}
             <div className="space-y-2">
               <Label htmlFor="finance-account-initial-balance">Initial balance</Label>
-              <Input
-                id="finance-account-initial-balance"
-                type="number"
-                min={0}
-                step="0.01"
-                {...form.register("initialBalance")}
+              <Controller
+                control={form.control}
+                name="initialBalance"
+                render={({ field: { value, onChange, ref } }) => (
+                  <CurrencyInput
+                    id="finance-account-initial-balance"
+                    value={value as any}
+                    onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                    getInputRef={ref}
+                  />
+                )}
               />
               <p className="text-xs text-destructive">
                 {form.formState.errors.initialBalance?.message}

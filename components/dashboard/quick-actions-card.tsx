@@ -40,21 +40,28 @@ const quickActions: QuickAction[] = [
     icon: Truck,
   },
   {
-    title: "Receive Partner Stock",
-    description: "Record items brought by partners for selling.",
+    title: "Receive Seller Stock",
+    description: "Record items brought by sellers for selling.",
     href: "/sellers/new-intake",
     permission: "sellers:manage",
     icon: HandCoins,
   },
   {
-    title: "Give Item To Partner",
-    description: "Assign owned items to a partner and set the partner price.",
+    title: "Seller Assignment",
+    description: "Assign owned items to a seller and set the seller price.",
     href: "/sellers/assign-items?open=1",
     permission: "sellers:manage",
     icon: Boxes,
   },
   {
-    title: "Collect From Partner",
+    title: "Record Return",
+    description: "Return unsold items to seller or back to branch stock.",
+    href: "/sellers/returns?open=1" as Route,
+    permission: "sellers:manage",
+    icon: ArrowRight,
+  },
+  {
+    title: "Collect From Seller",
     description: "Post cash or bank collection for sold assigned items.",
     href: "/sellers/collections?open=1" as Route,
     permission: "seller-settlements:create",
@@ -85,41 +92,60 @@ const quickActions: QuickAction[] = [
 
 export function QuickActionsCard({ role }: { role: AppRole }) {
   const visibleActions = quickActions.filter((action) => hasPermission(role, action.permission));
+  
+  const salesActions = visibleActions.filter(a => a.href.startsWith("/sales"));
+  const sellerActions = visibleActions.filter(a => a.href.startsWith("/sellers"));
+  const financeActions = visibleActions.filter(a => a.href.startsWith("/finance"));
+
+  const groups = [
+    { name: "Daily Sales", actions: salesActions },
+    { name: "Seller Operations", actions: sellerActions },
+    { name: "Shop Finance", actions: financeActions },
+  ].filter(g => g.actions.length > 0);
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>Quick Actions</CardTitle>
-        <CardDescription>Use the few daily shortcuts that matter most.</CardDescription>
+    <Card className="h-full border-none bg-transparent shadow-none">
+      <CardHeader className="px-0 pt-0">
+        <CardTitle className="text-xl">Daily Command Center</CardTitle>
+        <CardDescription>Quick access to your essential shop workflows.</CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 max-[359px]:grid-cols-1">
-        {visibleActions.map((action) => {
-          const Icon = action.icon;
+      <CardContent className="space-y-8 px-0">
+        {groups.map((group) => (
+          <div key={group.name} className="space-y-4">
+            <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80">
+              {group.name}
+            </h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {group.actions.map((action) => {
+                const Icon = action.icon;
 
-          return (
-            <Link
-              key={action.href}
-              href={action.href}
-              className="group rounded-2xl border border-border/70 bg-background/80 p-3 transition hover:border-primary/30 hover:bg-accent/40 sm:p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold sm:text-sm">{action.title}</p>
-                  <p className="text-[11px] leading-4 text-muted-foreground sm:text-xs sm:leading-5">
-                    {action.description}
-                  </p>
-                </div>
-                <span className="rounded-xl border border-border/70 bg-card p-1.5 text-primary sm:p-2">
-                  <Icon className="h-4 w-4" />
-                </span>
-              </div>
-              <div className="mt-2 flex items-center gap-1 text-xs font-medium text-primary sm:mt-3 sm:text-sm">
-                Open
-                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </div>
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={action.href}
+                    href={action.href}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border border-border/50 bg-card/50 p-4 transition-all hover:border-primary/30 hover:bg-card hover:shadow-xl hover:shadow-primary/5 dark:bg-card/20 dark:hover:bg-card/30"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="space-y-1.5">
+                        <p className="text-sm font-semibold tracking-tight sm:text-base">{action.title}</p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2 sm:text-xs">
+                          {action.description}
+                        </p>
+                      </div>
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                    </div>
+                    <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-primary opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100 sm:text-[11px]">
+                      START NOW
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
