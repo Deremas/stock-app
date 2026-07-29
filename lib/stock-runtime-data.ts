@@ -3,6 +3,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
 import { sumRows, toNumber } from "@/lib/data-runtime-utils";
+import { getOwnedStockBatches } from "@/lib/owned-stock-batches";
 
 export async function getOpenSellerPayablesBySeller(branchId?: string) {
   try {
@@ -150,29 +151,32 @@ export async function getStockSummaryRows(branchId?: string) {
   noStore();
 
   try {
-    const movements = await prisma.stockMovement.findMany({
-      where: {
-        ...(branchId ? { branchId } : {}),
-      },
-      include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
+    const [movements, ownedBatches] = await Promise.all([
+      prisma.stockMovement.findMany({
+        where: {
+          ...(branchId ? { branchId } : {}),
+        },
+        include: {
+          branch: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          product: {
+            select: {
+              id: true,
+              name: true,
+              minimumStockAlert: true,
+            },
           },
         },
-        product: {
-          select: {
-            id: true,
-            name: true,
-            minimumStockAlert: true,
-          },
+        orderBy: {
+          movementDate: "asc",
         },
-      },
-      orderBy: {
-        movementDate: "asc",
-      },
-    });
+      }),
+      getOwnedStockBatches(branchId ? { branchId } : {}),
+    ]);
 
     const summary = new Map<
       string,
@@ -209,11 +213,9 @@ export async function getStockSummaryRows(branchId?: string) {
         lastMovementDate: movement.movementDate,
       };
 
-      if (movement.ownershipType === "OWNED") {
-        existing.ownedQty += movement.quantity;
-      } else if (movement.ownershipType === "SELLER_CONSIGNMENT") {
+      if (movement.ownershipType === "SELLER_CONSIGNMENT") {
         existing.sellerQty += movement.quantity;
-      } else {
+      } else if (movement.ownershipType === "SELLER_ASSIGNED") {
         existing.assignedQty += movement.quantity;
       }
 
@@ -221,8 +223,39 @@ export async function getStockSummaryRows(branchId?: string) {
         existing.lastMovementDate = movement.movementDate;
       }
 
-      existing.totalQty += movement.quantity;
-      existing.stockValue += movement.quantity * toNumber(movement.unitCost);
+      if (movement.ownershipType === "SELLER_CONSIGNMENT") {
+        existing.totalQty += movement.quantity;
+        existing.stockValue += movement.quantity * toNumber(movement.unitCost);
+      }
+      summary.set(key, existing);
+    }
+
+    for (const batch of ownedBatches) {
+      const key = `${batch.branchId}:${batch.productId}`;
+      const receivedAt = new Date(batch.receivedAt);
+      const existing = summary.get(key) ?? {
+        id: key,
+        branchId: batch.branchId,
+        branch: batch.branchName,
+        productId: batch.productId,
+        product: batch.productName,
+        ownedQty: 0,
+        sellerQty: 0,
+        assignedQty: 0,
+        totalQty: 0,
+        stockValue: 0,
+        minimumStockAlert: 0,
+        lastMovementDate: receivedAt,
+      };
+
+      existing.ownedQty += batch.remainingQuantity;
+      existing.totalQty += batch.remainingQuantity;
+      existing.stockValue += batch.remainingQuantity * batch.unitCost;
+
+      if (receivedAt > existing.lastMovementDate) {
+        existing.lastMovementDate = receivedAt;
+      }
+
       summary.set(key, existing);
     }
 

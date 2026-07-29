@@ -213,7 +213,7 @@ export const materialTableHeadCellSx = {
   color: textColor,
   borderBottom: `1px solid ${borderColor}`,
   fontWeight: 700,
-  paddingBlock: "0.75rem",
+  paddingBlock: "0.5rem",
   paddingInline: "0.5rem",
   whiteSpace: "nowrap",
   overflow: "visible",
@@ -272,7 +272,7 @@ export const materialTableBodyCellSx = {
   backgroundColor: "transparent",
   color: textColor,
   borderBottom: `1px solid ${borderColor}`,
-  paddingBlock: "0.6rem",
+  paddingBlock: "0.35rem",
   paddingInline: "0.5rem",
   '&[data-pinned="left"], &[data-pinned="right"], &[data-pinned="true"]': {
     backgroundColor: surfaceColor,

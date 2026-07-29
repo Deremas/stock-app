@@ -153,11 +153,12 @@ function getDefaultValues(
     note: "",
     items: [
       {
-        productId: "",
-        ownedBatchId: "",
+        productId: defaultProduct?.id ?? "",
+        ownedBatchId: defaultBatches[0]?.id ?? "",
         quantity: 1,
-        unitPrice: 0,
+        unitPrice: defaultStock?.defaultUnitPrice ?? 0,
         discount: 0,
+        fixedDiscount: 0,
       },
     ],
   };
@@ -228,7 +229,7 @@ export function SaleForm({
     return sum + Number(item.quantity || 0) * Number(item.unitPrice || 0);
   }, 0);
   const discountTotal = items.reduce((sum, item) => {
-    return sum + Number(item.quantity || 0) * Number(item.discount || 0);
+    return sum + (Number(item.quantity || 0) * Number(item.discount || 0)) + Number(item.fixedDiscount || 0);
   }, 0);
   const total = grossTotal - discountTotal;
 
@@ -376,9 +377,9 @@ export function SaleForm({
                       : "No sellable stock is available in the selected branch."}
                   </div>
                 ) : null}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 lg:grid-cols-5">
+                <div className="grid grid-cols-12 gap-x-4 gap-y-4">
                   {userRole === "ADMIN" || options.branches.length > 1 ? (
-                    <div className="col-span-2 space-y-1.5 lg:col-span-1">
+                    <div className="col-span-12 sm:col-span-6 md:col-span-4 lg:col-span-3 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
                       <Label htmlFor="sale-branch">Branch</Label>
                       <Select id="sale-branch" {...form.register("branchId")}>
                         <option value="">Select branch</option>
@@ -390,7 +391,7 @@ export function SaleForm({
                       </Select>
                     </div>
                   ) : (
-                    <div className="col-span-2 space-y-1.5 lg:col-span-1">
+                    <div className="col-span-12 sm:col-span-6 md:col-span-4 lg:col-span-3 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
                       <Label>Branch</Label>
                       <div className="flex h-10 w-full items-center rounded-xl border border-input bg-muted px-3 py-2 text-sm text-muted-foreground ring-offset-background">
                         {options.branches.find((b) => b.id === branchId)?.name ?? "Active Branch"}
@@ -399,7 +400,7 @@ export function SaleForm({
                       <input type="hidden" {...form.register("branchId")} />
                     </div>
                   )}
-                  <div className="col-span-2 space-y-1.5 lg:col-span-1">
+                  <div className="col-span-12 sm:col-span-6 md:col-span-8 lg:col-span-5 xl:col-span-4 space-y-1.5 flex flex-col justify-end">
                     <div className="flex items-center justify-between gap-3">
                       <Label htmlFor="customerId">Customer</Label>
                       <Button
@@ -422,7 +423,7 @@ export function SaleForm({
                       ))}
                     </Select>
                   </div>
-                  <div className="col-span-1 space-y-1.5 lg:col-span-1">
+                  <div className="col-span-6 sm:col-span-4 md:col-span-4 lg:col-span-2 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
                     <Label htmlFor="paymentMethod">Payment method</Label>
                     <Select id="paymentMethod" {...form.register("paymentMethod")}>
                       <option value="CASH">Cash</option>
@@ -430,10 +431,10 @@ export function SaleForm({
                       <option value="CREDIT">Credit</option>
                     </Select>
                   </div>
-                  <div className="col-span-1 space-y-1.5 lg:col-span-1">
+                  <div className="col-span-6 sm:col-span-4 md:col-span-4 lg:col-span-2 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
                     {paymentMethod !== "CREDIT" ? (
-                      <>
-                        <Label htmlFor="financeAccountId">
+                      <div className="flex flex-col justify-end w-full">
+                        <Label htmlFor="financeAccountId" className="mb-1.5">
                           {paymentMethod === "BANK" ? "Bank account" : "Cash account"}
                         </Label>
                         <Select id="financeAccountId" {...form.register("financeAccountId")}>
@@ -448,14 +449,14 @@ export function SaleForm({
                             </option>
                           ))}
                         </Select>
-                      </>
+                      </div>
                     ) : (
-                      <div className="h-full pt-8">
+                      <div className="h-10 flex items-center">
                         <p className="text-xs text-muted-foreground italic">Credit sale</p>
                       </div>
                     )}
                   </div>
-                  <div className="col-span-2 space-y-1.5 lg:col-span-1">
+                  <div className="col-span-12 sm:col-span-4 md:col-span-4 lg:col-span-3 xl:col-span-3 space-y-1.5 flex flex-col justify-end">
                     <Label htmlFor="soldAt">Sale date</Label>
                     <Input id="soldAt" type="datetime-local" {...form.register("soldAt")} />
                   </div>
@@ -473,13 +474,14 @@ export function SaleForm({
                     </h3>
                   </div>
                   <div className="space-y-2 md:-mx-6 md:overflow-x-auto md:overflow-y-hidden md:px-6 md:pb-4">
-                    <div className="md:min-w-[800px] md:space-y-2">
-                      <div className="mb-2 hidden gap-3 px-4 md:grid md:grid-cols-[minmax(150px,2.5fr)_minmax(130px,1.8fr)_minmax(110px,1.1fr)_minmax(120px,1.5fr)_minmax(90px,1fr)_40px]">
+                    <div className="md:min-w-[900px] md:space-y-2">
+                      <div className="mb-2 hidden gap-3 px-4 md:grid md:grid-cols-[minmax(140px,2fr)_minmax(120px,1.6fr)_minmax(100px,1fr)_minmax(110px,1.2fr)_minmax(90px,0.9fr)_minmax(90px,0.9fr)_40px]">
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Item Name</Label>
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Source</Label>
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Qty</Label>
                         <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Unit Price</Label>
-                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Discount</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Disc / Qty</Label>
+                        <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Fixed Disc</Label>
                         <div />
                       </div>
                     {fields.map((field, index) => (
@@ -504,7 +506,7 @@ export function SaleForm({
                             </Button>
                           ) : null}
                         </div>
-                        <div className="grid grid-cols-12 gap-x-3 gap-y-2 md:grid-cols-[minmax(150px,2.5fr)_minmax(130px,1.8fr)_minmax(110px,1.1fr)_minmax(120px,1.5fr)_minmax(90px,1fr)_40px] md:gap-3 md:px-4 md:items-center">
+                        <div className="grid grid-cols-12 gap-x-3 gap-y-2 md:grid-cols-[minmax(140px,2fr)_minmax(120px,1.6fr)_minmax(100px,1fr)_minmax(110px,1.2fr)_minmax(90px,0.9fr)_minmax(90px,0.9fr)_40px] md:gap-3 md:px-4 md:items-center">
                           {(() => {
                             const branchProducts = getAvailableProductsForBranch(options, branchId);
                             const stockEntry = getBranchProductStock(
@@ -538,6 +540,7 @@ export function SaleForm({
                                         });
                                         form.setValue(`items.${index}.ownedBatchId`, "", { shouldDirty: true });
                                         form.setValue(`items.${index}.discount`, 0, { shouldDirty: true });
+                                        form.setValue(`items.${index}.fixedDiscount`, 0, { shouldDirty: true });
                                       }
                                     })}
                                   >
@@ -572,7 +575,7 @@ export function SaleForm({
                                     ))}
                                   </Select>
                                 </div>
-                                <div className="col-span-4 min-w-0 space-y-1 sm:col-span-2 md:col-span-1">
+                                <div className="col-span-4 min-w-0 space-y-1 sm:col-span-2 md:col-span-1 relative">
                                   <Label className="text-[10px] uppercase text-muted-foreground md:hidden">Qty</Label>
                                   <div className="flex items-center gap-0.5 rounded-xl border border-border bg-background p-0.5">
                                     <Button
@@ -597,6 +600,7 @@ export function SaleForm({
                                       max={maxQuantity || undefined}
                                       className="h-8 border-0 text-center shadow-none focus-visible:ring-0"
                                       {...form.register(`items.${index}.quantity`)}
+                                      onFocus={(e) => e.target.select()}
                                     />
                                     <Button
                                       type="button"
@@ -613,34 +617,51 @@ export function SaleForm({
                                       <Plus className="h-3.5 w-3.5 stroke-[3]" />
                                     </Button>
                                   </div>
-                                  <p className="text-[9px] text-muted-foreground md:absolute md:-bottom-5">
+                                  <p className="text-[10px] font-medium text-muted-foreground absolute -bottom-5 left-0 right-0 text-center whitespace-nowrap">
                                     {maxQuantity > 0
                                       ? `Available: ${maxQuantity}`
-                                      : "No stock."}
+                                      : "No stock"}
                                   </p>
                                 </div>
-                                <div className="col-span-5 min-w-0 space-y-1 sm:col-span-6 md:col-span-1">
+                                <div className="col-span-4 min-w-0 space-y-1 sm:col-span-4 md:col-span-1">
                                   <Label className="text-[10px] uppercase text-muted-foreground md:hidden">Price</Label>
                                   <Controller
                                     control={form.control}
                                     name={`items.${index}.unitPrice`}
                                     render={({ field: { value, onChange, ref } }) => (
                                       <CurrencyInput
-                                        value={value as any}
+                                        value={value === 0 ? "" : (value as any)}
+                                        placeholder="0.00"
                                         onValueChange={(values) => onChange(values.floatValue ?? 0)}
                                         getInputRef={ref}
                                       />
                                     )}
                                   />
                                 </div>
-                                <div className="col-span-3 min-w-0 space-y-1 sm:col-span-4 md:col-span-1">
-                                  <Label className="text-[10px] uppercase text-muted-foreground md:hidden">Discount</Label>
+                                <div className="col-span-2 min-w-0 space-y-1 sm:col-span-3 md:col-span-1">
+                                  <Label className="text-[10px] uppercase text-muted-foreground md:hidden">Disc / Qty</Label>
                                   <Controller
                                     control={form.control}
                                     name={`items.${index}.discount`}
                                     render={({ field: { value, onChange, ref } }) => (
                                       <CurrencyInput
-                                        value={value as any}
+                                        value={value === 0 ? "" : (value as any)}
+                                        placeholder="0.00"
+                                        onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                                        getInputRef={ref}
+                                      />
+                                    )}
+                                  />
+                                </div>
+                                <div className="col-span-2 min-w-0 space-y-1 sm:col-span-3 md:col-span-1">
+                                  <Label className="text-[10px] uppercase text-muted-foreground md:hidden">Fixed Disc</Label>
+                                  <Controller
+                                    control={form.control}
+                                    name={`items.${index}.fixedDiscount`}
+                                    render={({ field: { value, onChange, ref } }) => (
+                                      <CurrencyInput
+                                        value={value === 0 ? "" : (value as any)}
+                                        placeholder="0.00"
                                         onValueChange={(values) => onChange(values.floatValue ?? 0)}
                                         getInputRef={ref}
                                       />
@@ -685,6 +706,7 @@ export function SaleForm({
                           quantity: 1,
                           unitPrice: 0,
                           discount: 0,
+                          fixedDiscount: 0,
                         });
                       }}
                     >

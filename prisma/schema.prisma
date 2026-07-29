@@ -96,6 +96,12 @@ enum SettlementStatus {
   VOIDED
 }
 
+enum InventoryAdjustmentType {
+  PURCHASE_PRICE
+  SELLING_PRICE
+  QUANTITY
+}
+
 model User {
   id                       String               @id @default(cuid())
   name                     String
@@ -114,6 +120,7 @@ model User {
   sessions                 Session[]
   accounts                 Account[]
   auditLogs                AuditLog[]           @relation("AuditActor")
+  inventoryAdjustments     InventoryAdjustment[] @relation("InventoryAdjustmentActor")
   createdPurchases         Purchase[]           @relation("PurchaseCreatedBy")
   createdSales             Sale[]               @relation("SaleCreatedBy")
   createdIntakes           SellerIntake[]       @relation("SellerIntakeRecordedBy")
@@ -225,6 +232,7 @@ model Branch {
   transfersTo       Transfer[]             @relation("TransferDestinationBranch")
   ledgerEntries     LedgerEntry[]
   auditLogs         AuditLog[]
+  inventoryAdjustments InventoryAdjustment[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -285,6 +293,7 @@ model Product {
   stockMovements      StockMovement[]
   stockSnapshots      StockBalanceSnapshot[]
   alertRecords        AlertRecord[]
+  inventoryAdjustments InventoryAdjustment[]
   createdAt           DateTime               @default(now())
   updatedAt           DateTime               @updatedAt
 
@@ -385,6 +394,7 @@ model PurchaseItem {
   purchaseId      String
   productId       String
   quantity        Int
+  quantityAdjustment Int                 @default(0)
   quantityTransferred Int             @default(0)
   unitCost        Decimal             @db.Decimal(18, 2)
   sellingPrice    Decimal             @db.Decimal(18, 2)
@@ -436,6 +446,7 @@ model SaleItem {
   quantity    Int
   unitPrice   Decimal             @db.Decimal(18, 2)
   discount    Decimal             @default(0) @db.Decimal(18, 2)
+  fixedDiscount Decimal             @default(0) @db.Decimal(18, 2)
   lineTotal   Decimal             @db.Decimal(18, 2)
   sale        Sale                @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product     Product             @relation(fields: [productId], references: [id])
@@ -783,6 +794,7 @@ model TransferItem {
   transferId String
   productId  String
   quantity   Int
+  quantityAdjustment Int @default(0)
   quantityTransferred Int @default(0)
   unitCost   Decimal? @db.Decimal(18, 2)
   sellingPrice Decimal @db.Decimal(18, 2)
@@ -910,4 +922,29 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model InventoryAdjustment {
+  id              String                  @id @default(cuid())
+  adjustmentType  InventoryAdjustmentType
+  batchId         String
+  batchType       String
+  referenceNumber String
+  productId       String
+  branchId        String
+  actorUserId     String
+  previousValue   Decimal                 @db.Decimal(18, 2)
+  newValue        Decimal                 @db.Decimal(18, 2)
+  quantityDelta   Int?
+  reason          String
+  product         Product                 @relation(fields: [productId], references: [id])
+  branch          Branch                  @relation(fields: [branchId], references: [id])
+  actor           User                    @relation("InventoryAdjustmentActor", fields: [actorUserId], references: [id])
+  createdAt       DateTime                @default(now())
+
+  @@index([batchId, createdAt])
+  @@index([productId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([adjustmentType, createdAt])
+  @@map("inventory_adjustments")
 }

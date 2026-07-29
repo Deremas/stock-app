@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { updatePurchaseBatchSellingPriceAction } from "@/lib/actions/purchase-batches";
+import { Label } from "@/components/ui/label";
+import { adjustOwnedStockBatchAction } from "@/lib/actions/purchase-batches";
 import type { OwnedStockBatchOption } from "@/lib/types";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 
@@ -25,10 +26,25 @@ type OwnedStockBatchDialogProps = {
   canEdit: boolean;
 };
 
-function buildDraftPrices(batches: OwnedStockBatchOption[]) {
+type AdjustmentDraft = {
+  unitCost: string;
+  sellingPrice: string;
+  quantityDelta: string;
+  reason: string;
+};
+
+function buildDrafts(batches: OwnedStockBatchOption[]) {
   return Object.fromEntries(
-    batches.map((batch) => [batch.id, String(batch.sellingPrice)]),
-  ) as Record<string, string>;
+    batches.map((batch) => [
+      batch.id,
+      {
+        unitCost: String(batch.unitCost),
+        sellingPrice: String(batch.sellingPrice),
+        quantityDelta: "0",
+        reason: "",
+      },
+    ]),
+  ) as Record<string, AdjustmentDraft>;
 }
 
 export function OwnedStockBatchDialog({
@@ -40,15 +56,34 @@ export function OwnedStockBatchDialog({
 }: OwnedStockBatchDialogProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [draftPrices, setDraftPrices] = useState<Record<string, string>>(
-    buildDraftPrices(batches),
+  const [drafts, setDrafts] = useState<Record<string, AdjustmentDraft>>(
+    buildDrafts(batches),
   );
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setDraftPrices(buildDraftPrices(batches));
+    setDrafts(buildDrafts(batches));
   }, [batches]);
+
+  function updateDraft(
+    batchId: string,
+    field: keyof AdjustmentDraft,
+    value: string,
+  ) {
+    setDrafts((current) => ({
+      ...current,
+      [batchId]: {
+        ...(current[batchId] ?? {
+          unitCost: "0",
+          sellingPrice: "0",
+          quantityDelta: "0",
+          reason: "",
+        }),
+        [field]: value,
+      },
+    }));
+  }
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {
@@ -59,14 +94,21 @@ export function OwnedStockBatchDialog({
   }
 
   function handleSave(batch: OwnedStockBatchOption) {
-    const nextValue = Number(draftPrices[batch.id] ?? batch.sellingPrice);
+    const draft = drafts[batch.id];
+
+    if (!draft) {
+      return;
+    }
 
     startTransition(async () => {
       setActiveBatchId(batch.id);
 
-      const result = await updatePurchaseBatchSellingPriceAction({
+      const result = await adjustOwnedStockBatchAction({
         batchId: batch.id,
-        sellingPrice: nextValue,
+        unitCost: Number(draft.unitCost),
+        sellingPrice: Number(draft.sellingPrice),
+        quantityDelta: Number(draft.quantityDelta),
+        reason: draft.reason,
       });
 
       setActiveBatchId(null);
@@ -83,116 +125,179 @@ export function OwnedStockBatchDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-y-auto p-0">
+      <DialogContent className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-y-auto p-0">
         <div className="border-b border-border/70 px-6 py-4">
           <DialogHeader>
-            <DialogTitle>Inventory sources</DialogTitle>
+            <DialogTitle>Inventory sources and adjustments</DialogTitle>
             <DialogDescription>
               {productName && branchName
-              ? `${productName} in ${branchName}. Updating an item price affects only the unsold remaining quantity.`
-                : "Review or update item selling prices for the remaining owned quantity."}
+                ? `${productName} in ${branchName}. Adjustments affect remaining stock and future sales only. Completed sale prices and costs stay unchanged.`
+                : "Review batch prices and quantities. Every change requires a reason and is added to the adjustment report."}
             </DialogDescription>
           </DialogHeader>
         </div>
         <div className="space-y-4 p-6">
           {!canEdit ? (
             <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm text-muted-foreground">
-              Item prices are read-only for your role. Ask an admin if a remaining lot
-              needs a selling price update.
+              Adjustments are read-only for your role.
             </div>
           ) : null}
           {batches.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              No remaining inventory sources are available for this item in this branch.
+              No remaining owned inventory batches are available.
             </div>
           ) : (
             batches.map((batch) => {
-              const currentDraft = draftPrices[batch.id] ?? String(batch.sellingPrice);
+              const draft = drafts[batch.id] ?? {
+                unitCost: String(batch.unitCost),
+                sellingPrice: String(batch.sellingPrice),
+                quantityDelta: "0",
+                reason: "",
+              };
               const isSaving = isPending && activeBatchId === batch.id;
-              const normalizedDraft = Number(currentDraft);
-              const isChanged =
-                Number.isFinite(normalizedDraft) &&
-                normalizedDraft !== batch.sellingPrice;
+              const nextUnitCost = Number(draft.unitCost);
+              const nextSellingPrice = Number(draft.sellingPrice);
+              const quantityDelta = Number(draft.quantityDelta);
+              const hasChange =
+                nextUnitCost !== batch.unitCost ||
+                nextSellingPrice !== batch.sellingPrice ||
+                quantityDelta !== 0;
+              const resultingRemaining = batch.remainingQuantity + quantityDelta;
+              const canSave =
+                canEdit &&
+                hasChange &&
+                draft.reason.trim().length >= 3 &&
+                Number.isFinite(nextUnitCost) &&
+                nextUnitCost >= 0 &&
+                Number.isFinite(nextSellingPrice) &&
+                nextSellingPrice >= 0 &&
+                Number.isInteger(quantityDelta) &&
+                resultingRemaining >= 0;
 
               return (
                 <div
                   key={batch.id}
-                  className="rounded-2xl border border-border/70 bg-background p-4"
+                  className="space-y-4 rounded-2xl border border-border/70 bg-background p-4"
                 >
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          {batch.referenceNumber}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {batch.sourceType === "PURCHASE" ? "Received from supplier" : "Received from branch"}{" "}
-                          {batch.sourceName} on {formatDateTime(batch.receivedAt)}
-                        </p>
-                      </div>
-                      <div className="grid gap-2 text-sm sm:grid-cols-2">
-                        <p>
-                          Purchased Qty: <span className="font-medium">{batch.quantity}</span>
-                        </p>
-                        <p>
-                          Sold Qty: <span className="font-medium">{batch.soldQuantity}</span>
-                        </p>
-                        <p>
-                          Moved Out:{" "}
-                          <span className="font-medium">{batch.transferredQuantity}</span>
-                        </p>
-                        <p>
-                          Remaining Qty:{" "}
-                          <span className="font-medium">{batch.remainingQuantity}</span>
-                        </p>
-                        <p>
-                          Buying Price:{" "}
-                          <span className="font-medium">
-                            {formatCurrency(batch.unitCost)}
-                          </span>
-                        </p>
-                      </div>
+                  <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <p className="font-semibold">{batch.referenceNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {batch.sourceType === "PURCHASE"
+                          ? "Supplier purchase"
+                          : "Branch transfer"}{" "}
+                        from {batch.sourceName}
+                      </p>
                     </div>
+                    <p>
+                      Received:{" "}
+                      <span className="font-medium">
+                        {formatDateTime(batch.receivedAt)}
+                      </span>
+                    </p>
+                    <p>
+                      Original / adjusted quantity:{" "}
+                      <span className="font-medium">
+                        {batch.quantity} / {batch.adjustedQuantity}
+                      </span>
+                    </p>
+                    <p>
+                      Sold / moved / remaining:{" "}
+                      <span className="font-medium">
+                        {batch.soldQuantity} / {batch.transferredQuantity} /{" "}
+                        {batch.remainingQuantity}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="space-y-2">
-                      <p className="text-sm font-medium">Current item selling price</p>
-                      <p className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
-                        {formatCurrency(batch.sellingPrice)}
+                      <Label htmlFor={`batch-cost-${batch.id}`}>
+                        Buying price
+                      </Label>
+                      <Input
+                        id={`batch-cost-${batch.id}`}
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        disabled={!canEdit}
+                        value={draft.unitCost}
+                        onChange={(event) =>
+                          updateDraft(batch.id, "unitCost", event.target.value)
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Current: {formatCurrency(batch.unitCost)}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <label
-                        htmlFor={`batch-price-${batch.id}`}
-                        className="text-sm font-medium"
-                      >
-                        New selling price
-                      </label>
+                      <Label htmlFor={`batch-price-${batch.id}`}>
+                        Selling price
+                      </Label>
                       <Input
                         id={`batch-price-${batch.id}`}
                         type="number"
                         min={0}
                         step="0.01"
                         disabled={!canEdit}
-                        value={currentDraft}
+                        value={draft.sellingPrice}
                         onChange={(event) =>
-                          setDraftPrices((current) => ({
-                            ...current,
-                            [batch.id]: event.target.value,
-                          }))
+                          updateDraft(
+                            batch.id,
+                            "sellingPrice",
+                            event.target.value,
+                          )
                         }
                       />
                       <p className="text-xs text-muted-foreground">
-                        Future sales can still override this per sale line.
+                        Current: {formatCurrency(batch.sellingPrice)}
                       </p>
                     </div>
-                    <div className="flex items-end">
-                      <Button
-                        type="button"
-                        disabled={!canEdit || isSaving || !isChanged}
-                        onClick={() => handleSave(batch)}
-                      >
-                        {isSaving ? "Saving..." : "Save price"}
-                      </Button>
+                    <div className="space-y-2">
+                      <Label htmlFor={`batch-quantity-${batch.id}`}>
+                        Quantity change (+/-)
+                      </Label>
+                      <Input
+                        id={`batch-quantity-${batch.id}`}
+                        type="number"
+                        step={1}
+                        disabled={!canEdit}
+                        value={draft.quantityDelta}
+                        onChange={(event) =>
+                          updateDraft(
+                            batch.id,
+                            "quantityDelta",
+                            event.target.value,
+                          )
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Resulting remaining: {resultingRemaining}
+                      </p>
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`batch-reason-${batch.id}`}>Reason</Label>
+                      <Input
+                        id={`batch-reason-${batch.id}`}
+                        maxLength={500}
+                        placeholder="Count correction, supplier correction..."
+                        disabled={!canEdit}
+                        value={draft.reason}
+                        onChange={(event) =>
+                          updateDraft(batch.id, "reason", event.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      disabled={!canSave || isSaving}
+                      onClick={() => handleSave(batch)}
+                    >
+                      {isSaving ? "Saving adjustment..." : "Save adjustment"}
+                    </Button>
                   </div>
                 </div>
               );

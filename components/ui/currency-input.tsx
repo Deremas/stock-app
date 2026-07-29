@@ -18,7 +18,12 @@ export const CurrencyInput = React.forwardRef<
       decimalScale={2}
       allowNegative={false}
       onFocus={(e) => {
-        e.target.select();
+        const val = e.target.value.replace(/,/g, "");
+        if (val === "0" || val === "0.00" || val === "") {
+          e.target.value = "";
+        } else {
+          e.target.select();
+        }
         props.onFocus?.(e);
       }}
       {...props}

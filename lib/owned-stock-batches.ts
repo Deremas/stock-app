@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { AppRole } from "@/lib/rbac";
 import type { OwnedStockBatchOption } from "@/lib/types";
+import { calculateBatchQuantityAdjustment } from "@/lib/inventory-adjustments";
 
 function toNumber(value: unknown) {
   return Number(value ?? 0);
@@ -45,6 +46,7 @@ export async function getOwnedStockBatches(
         id: true,
         productId: true,
         quantity: true,
+        quantityAdjustment: true,
         quantityTransferred: true,
         unitCost: true,
         sellingPrice: true,
@@ -104,6 +106,7 @@ export async function getOwnedStockBatches(
         id: true,
         productId: true,
         quantity: true,
+        quantityAdjustment: true,
         quantityTransferred: true,
         unitCost: true,
         sellingPrice: true,
@@ -145,8 +148,16 @@ export async function getOwnedStockBatches(
       0,
     );
     const transferredQuantity = batch.quantityTransferred;
-    const remainingQuantity =
-      batch.quantity - soldQuantity - transferredQuantity;
+    const {
+      adjustedQuantityAfter: adjustedQuantity,
+      remainingAfter: remainingQuantity,
+    } = calculateBatchQuantityAdjustment({
+      originalQuantity: batch.quantity,
+      existingAdjustment: batch.quantityAdjustment,
+      soldQuantity,
+      transferredQuantity,
+      quantityDelta: 0,
+    });
 
     return {
       id: batch.id,
@@ -159,6 +170,8 @@ export async function getOwnedStockBatches(
       sourceName: batch.purchase.supplier?.name ?? "No supplier",
       receivedAt: batch.purchase.purchasedAt.toISOString(),
       quantity: batch.quantity,
+      quantityAdjustment: batch.quantityAdjustment,
+      adjustedQuantity,
       soldQuantity,
       transferredQuantity,
       remainingQuantity,
@@ -173,8 +186,16 @@ export async function getOwnedStockBatches(
       0,
     );
     const transferredQuantity = batch.quantityTransferred;
-    const remainingQuantity =
-      batch.quantity - soldQuantity - transferredQuantity;
+    const {
+      adjustedQuantityAfter: adjustedQuantity,
+      remainingAfter: remainingQuantity,
+    } = calculateBatchQuantityAdjustment({
+      originalQuantity: batch.quantity,
+      existingAdjustment: batch.quantityAdjustment,
+      soldQuantity,
+      transferredQuantity,
+      quantityDelta: 0,
+    });
 
     return {
       id: batch.id,
@@ -191,6 +212,8 @@ export async function getOwnedStockBatches(
         new Date()
       ).toISOString(),
       quantity: batch.quantity,
+      quantityAdjustment: batch.quantityAdjustment,
+      adjustedQuantity,
       soldQuantity,
       transferredQuantity,
       remainingQuantity,

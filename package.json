@@ -3,17 +3,22 @@
   "version": "1.0.0",
   "description": "Multi-branch stock management web app for electronics accessories",
   "private": true,
+  "engines": {
+    "node": ">=20.9.0 <25",
+    "npm": ">=10"
+  },
   "scripts": {
     "dev": "next dev",
     "postinstall": "prisma generate",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "auth:secret": "node scripts/generate-better-auth-secret.mjs",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:audit": "tsx scripts/audit-production-database.ts",
     "db:seed": "tsx prisma/seed.ts",
     "test": "vitest run --pool=threads",
     "test:watch": "vitest --pool=threads",

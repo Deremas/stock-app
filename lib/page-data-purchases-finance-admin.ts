@@ -345,6 +345,15 @@ export async function getFinanceAccountRows(filters: FinanceAccountFilters = {})
             }),
             icon: "ledger",
           }),
+          createRowAction({
+            key: "edit",
+            label: "Edit",
+            href: withFilter("/finance/accounts", {
+              editAccountId: row.id,
+              open: "edit",
+            }),
+            icon: "edit",
+          }),
         ],
       }) satisfies SimpleRow,
   );

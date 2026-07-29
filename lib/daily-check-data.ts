@@ -43,6 +43,7 @@ export async function getDailyCheckSnapshot(args: {
         { title: "Today's Cash Sales", value: formatCurrency(0), meta: "Daily total" },
         { title: "Today's Bank Sales", value: formatCurrency(0), meta: "Daily total" },
         { title: "Today's Credit Sales", value: formatCurrency(0), meta: "Daily total" },
+        { title: "Total Discounts Today", value: formatCurrency(0), meta: "Daily total" },
         { title: "Seller Items Brought", value: "0" },
         { title: "Seller Received Sales", value: formatCurrency(0) },
         { title: "Expected Seller Payable", value: formatCurrency(0) },
@@ -273,6 +274,15 @@ export async function getDailyCheckSnapshot(args: {
       .map((row) => toNumber(row.quantity)),
   );
 
+  const totalDiscounts = sumRows(
+    soldItemRows.map((row) => {
+      const qty = toNumber(row.quantity);
+      const disc = toNumber(row.discount);
+      const fixedDisc = toNumber(row.fixedDiscount);
+      return (disc * qty) + fixedDisc;
+    }),
+  );
+
   return {
     dateLabel,
     metrics: [
@@ -297,6 +307,12 @@ export async function getDailyCheckSnapshot(args: {
         value: formatCurrency(creditSales),
         tone: "warning",
         meta: "Daily total",
+      },
+      {
+        title: "Total Discounts Today",
+        value: formatCurrency(totalDiscounts),
+        tone: totalDiscounts > 0 ? "warning" : "default",
+        meta: "Price reductions applied today",
       },
       {
         title: "Seller Items Brought",

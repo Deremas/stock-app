@@ -7,6 +7,7 @@ import { getOwnedStockBatches } from "@/lib/owned-stock-batches";
 import { getTablePageConfig } from "@/lib/page-data";
 import { prisma } from "@/lib/prisma";
 import { getSingleSearchParam, type RouteSearchParams } from "@/lib/query-params";
+import { hasPermission } from "@/lib/rbac";
 
 type StockOverviewPageProps = {
   searchParams?: Promise<RouteSearchParams>;
@@ -74,7 +75,9 @@ export default async function Page({ searchParams }: StockOverviewPageProps) {
         productName={selectedProduct?.name}
         branchName={selectedBranch?.name}
         batches={ownedBatches}
-        canEdit={currentUser?.role === "ADMIN"}
+        canEdit={Boolean(
+          currentUser && hasPermission(currentUser.role, "inventory:manage"),
+        )}
       />
     </>
   );

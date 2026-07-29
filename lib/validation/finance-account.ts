@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const financeAccountSchema = z
   .object({
-    branchId: z.string().min(1, "Select a branch."),
+    branchId: z.string().optional().or(z.literal("")),
     type: z.enum(["CASH", "BANK"]),
     name: z
       .string()
@@ -24,6 +24,7 @@ export const financeAccountSchema = z
     initialBalance: z.coerce
       .number()
       .min(0, "Initial balance must be zero or more."),
+    isActive: z.boolean().default(true),
   })
   .superRefine((value, ctx) => {
     if (value.type === "BANK") {

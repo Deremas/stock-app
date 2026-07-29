@@ -16,9 +16,13 @@ const salesColumns: SimpleColumn[] = [
 
 const soldItemsColumns: SimpleColumn[] = [
   { key: "product", header: "Item" },
+  { key: "batchNumber", header: "Batch No." },
   { key: "quantity", header: "Qty", type: "number" },
   { key: "source", header: "Source", type: "status" },
   { key: "seller", header: "Partner" },
+  { key: "unitPrice", header: "Unit Price", type: "currency" },
+  { key: "discount", header: "Disc/Qty", type: "currency" },
+  { key: "fixedDiscount", header: "Fixed Disc", type: "currency" },
   { key: "total", header: "Total", type: "currency" },
   { key: "soldAt", header: "Sold At", type: "dateTime" },
 ];

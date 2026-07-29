@@ -43,7 +43,7 @@ export const navigationEntries: NavigationEntry[] = [
       },
       {
         title: "Current Stock",
-        href: "/inventory/stock-overview",
+        href: "/inventory/stock",
         icon: "stockOverview",
         permission: "inventory:view",
       },
@@ -257,6 +257,11 @@ const hiddenPageTitles: NavigationItem[] = [
   { title: "Audit Logs", href: "/admin/audit-logs", icon: "auditLogs", roles: ["ADMIN"] },
   { title: "Settings", href: "/admin/settings", icon: "settings", roles: ["ADMIN"] },
   { title: "Inventory Reports", href: "/reports/inventory", icon: "reports" },
+  {
+    title: "Inventory Adjustments",
+    href: "/reports/inventory-adjustments",
+    icon: "reports",
+  },
   { title: "Sales Reports", href: "/reports/sales", icon: "reports" },
   { title: "Purchase Reports", href: "/reports/purchases", icon: "reports" },
   { title: "Seller Reports", href: "/reports/sellers", icon: "reports" },

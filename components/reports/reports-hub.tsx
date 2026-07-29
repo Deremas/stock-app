@@ -26,6 +26,12 @@ const reportOptions = [
     href: "/reports/sales",
   },
   {
+    id: "discounts-report",
+    name: "Discounts Report",
+    description: "Detailed discounts metrics and list of all discounted sales items.",
+    href: "/reports/discounts",
+  },
+  {
     id: "partner-exposure",
     name: "Seller Exposure",
     description:
@@ -42,7 +48,14 @@ const reportOptions = [
     id: "stock-overview",
     name: "Current Stock",
     description: "Current stock by item and branch.",
-    href: "/inventory/stock-overview",
+    href: "/inventory/stock",
+  },
+  {
+    id: "inventory-adjustments",
+    name: "Inventory Adjustments",
+    description:
+      "Audited buying-price, selling-price, and quantity corrections by stock batch.",
+    href: "/reports/inventory-adjustments",
   },
   {
     id: "low-stock",

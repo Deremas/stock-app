@@ -48,7 +48,7 @@ function createBatchListHref(input: { productId: string; branchId: string }) {
     openBatches: "1",
   });
 
-  return `/inventory/stock-overview?${params.toString()}`;
+  return `/inventory/stock?${params.toString()}`;
 }
 
 function createEditItemHref(productId: string) {
@@ -144,6 +144,16 @@ export async function getStockOverviewRows(branchId?: string, role: AppRole = "S
       const agingText = daysOld === 0 ? "Today" : `${daysOld} day${daysOld === 1 ? "" : "s"} ago`;
       const isDeadStock = daysOld > 90;
 
+      actions.push(
+        createRowAction({
+          key: "view_movements",
+          label: "View Movements",
+          href: `/inventory/stock-movements?productId=${row.productId}${row.branchId ? `&branchId=${row.branchId}` : ''}`,
+          icon: "view",
+          showLabel: true,
+        })
+      );
+
       if (row.ownedQty > 0) {
         actions.push(
           createRowAction({
@@ -199,8 +209,6 @@ export async function getStockOverviewRows(branchId?: string, role: AppRole = "S
         assignedQty: row.assignedQty,
         totalQty: row.totalQty,
         stockValue: Math.max(row.stockValue, 0),
-        aging: isDeadStock ? `${agingText} (Dead Stock)` : agingText,
-        agingStatus: isDeadStock ? "CRITICAL" : daysOld > 30 ? "WARNING" : "NORMAL",
         ...(actions.length > 0 ? { __actions: actions } : {}),
       } satisfies SimpleRow;
     },
@@ -324,10 +332,11 @@ export async function getAlertRecordRows(branchId?: string) {
   );
 }
 
-export async function getStockMovementRows(branchId?: string) {
+export async function getStockMovementRows(filters: { branchId?: string; productId?: string } = {}) {
   const rows = await prisma.stockMovement.findMany({
     where: {
-      ...(branchId ? { branchId } : {}),
+      ...(filters.branchId ? { branchId: filters.branchId } : {}),
+      ...(filters.productId ? { productId: filters.productId } : {}),
     },
     orderBy: {
       movementDate: "desc",
@@ -347,17 +356,29 @@ export async function getStockMovementRows(branchId?: string) {
   });
 
   return rows.map(
-    (row) =>
-      ({
+    (row) => {
+      const reference = row.sourceLineId ?? row.sourceId;
+      const typeStr = toTitleCase(row.movementType.replace(/_/g, " "));
+      const actionVerb =
+        row.movementType === "SALE" ? "Sold" :
+        row.movementType === "PURCHASE" ? "Purchased" :
+        row.movementType === "TRANSFER_IN" ? "Received transfer" :
+        row.movementType === "TRANSFER_OUT" ? "Sent transfer" :
+        row.movementType === "SELLER_RETURN" || row.movementType === "CUSTOMER_RETURN" ? "Returned" :
+        row.movementType.includes("ADJUSTMENT") ? "Adjusted" : typeStr;
+
+      return {
         id: row.id,
         branch: row.branch.name,
         product: row.product.name,
         type: row.movementType,
         ownership: row.ownershipType,
-        quantity: row.quantity,
-        reference: row.sourceLineId ?? row.sourceId,
+        quantity: row.quantity > 0 ? `+${row.quantity}` : `${row.quantity}`,
+        reference: reference,
+        notes: `${actionVerb} via ${row.sourceType.toLowerCase()} ${reference.slice(0, 8)}`,
         movementDate: row.movementDate.toISOString(),
-      }) satisfies SimpleRow,
+      } satisfies SimpleRow;
+    }
   );
 }
 

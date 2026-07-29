@@ -398,7 +398,12 @@ export async function createSaleAction(
           throw new Error("Discount cannot exceed unit price.");
         }
 
-        return sum + item.quantity * netUnitPrice;
+        const lineTotal = item.quantity * netUnitPrice - (item.fixedDiscount ?? 0);
+        if (lineTotal < 0) {
+          throw new Error("Fixed discount cannot exceed the line item total.");
+        }
+
+        return sum + lineTotal;
       }, 0);
       const isCredit = parsed.data.paymentMethod === "CREDIT";
       const saleNumber = createDocumentNumber("SAL", soldAt);
@@ -414,7 +419,7 @@ export async function createSaleAction(
           paymentStatus: isCredit ? PaymentStatus.UNPAID : PaymentStatus.PAID,
           subtotal: toDecimal(subtotal),
           discountTotal: toDecimal(
-            parsed.data.items.reduce((sum, item) => sum + item.quantity * item.discount, 0),
+            parsed.data.items.reduce((sum, item) => sum + (item.quantity * item.discount) + (item.fixedDiscount ?? 0), 0),
           ),
           total: toDecimal(subtotal),
           amountPaid: toDecimal(isCredit ? 0 : subtotal),
@@ -437,7 +442,7 @@ export async function createSaleAction(
         }
 
         const netUnitPrice = item.unitPrice - item.discount;
-        const lineTotal = item.quantity * netUnitPrice;
+        const lineTotal = item.quantity * netUnitPrice - (item.fixedDiscount ?? 0);
         const saleItem = await tx.saleItem.create({
           data: {
             saleId: sale.id,
@@ -445,6 +450,7 @@ export async function createSaleAction(
             quantity: item.quantity,
             unitPrice: toDecimal(item.unitPrice),
             discount: toDecimal(item.discount),
+            fixedDiscount: toDecimal(item.fixedDiscount ?? 0),
             lineTotal: toDecimal(lineTotal),
           },
           select: {

@@ -16,6 +16,7 @@ import type {
   FinanceAccountOption,
   OutstandingSellerBalanceOption,
   OutstandingSaleOption,
+  OwnedStockBatchOption,
   ProductOption,
   PurchaseFormOptions,
   SaleBranchStockOption,
@@ -92,11 +93,19 @@ export async function getFinanceAccountFormOptions(): Promise<FinanceAccountForm
       })
     : [];
 
+  const globalCashCount = await prisma.financeAccount.count({
+    where: {
+      type: "CASH",
+      isActive: true,
+    },
+  });
+
   return {
     branches: scope.branches,
     cashBranchIds: cashAccounts
       .map((account) => account.branchId)
       .filter((branchId): branchId is string => Boolean(branchId)),
+    hasGlobalCash: globalCashCount > 0,
   };
 }
 
@@ -145,7 +154,7 @@ async function getSaleBranchStockOptions(
   // Retrieve the current branch scope to get the user's role
   const scope = await getCurrentBranchScope();
 
-  const [stockSummary, ownedBatches, sellerIntakeItems, sellerAssignmentItems] =
+  const [stockSummary, ownedBatches, sellerIntakeItems] =
     await Promise.all([
       getStockSummaryRows(),
       // Pass the role from the scope when fetching owned stock batches
@@ -169,34 +178,6 @@ async function getSaleBranchStockOptions(
           targetSellingPrice: true,
           bringingDate: true,
           sellerIntake: {
-            select: {
-              branchId: true,
-            },
-          },
-        },
-      }),
-      prisma.sellerAssignmentItem.findMany({
-        where: {
-          sellerAssignment: {
-            branchId: {
-              in: branchIds,
-            },
-          },
-        },
-        orderBy: [{ assignmentDate: "asc" }, { createdAt: "asc" }],
-        select: {
-          productId: true,
-          quantityAssigned: true,
-          quantitySold: true,
-          quantityReturned: true,
-          assignmentDate: true,
-          sellingPrice: true,
-          sellerIntakeItem: {
-            select: {
-              sellerFixedPrice: true,
-            },
-          },
-          sellerAssignment: {
             select: {
               branchId: true,
             },
@@ -249,24 +230,6 @@ async function getSaleBranchStockOptions(
       productId: item.productId,
       defaultUnitPrice: toNumber(item.targetSellingPrice ?? item.sellerFixedPrice),
       dateValue: item.bringingDate.getTime(),
-    });
-  }
-
-  for (const item of sellerAssignmentItems) {
-    const availableQty =
-      item.quantityAssigned - item.quantitySold - item.quantityReturned;
-
-    if (availableQty <= 0) {
-      continue;
-    }
-
-    setDefaultPrice({
-      branchId: item.sellerAssignment.branchId,
-      productId: item.productId,
-      defaultUnitPrice: toNumber(
-        item.sellingPrice ?? item.sellerIntakeItem?.sellerFixedPrice ?? 0,
-      ),
-      dateValue: item.assignmentDate.getTime(),
     });
   }
 
@@ -342,7 +305,14 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
 export async function getSaleFormOptions(): Promise<SaleFormOptions> {
   const scope = await getCurrentBranchScope();
   const branchIds = scope.branches.map((branch) => branch.id);
-  const [customers, products, ownedBatches, branchStock, rawAccounts] = await Promise.all([
+  const [
+    customers,
+    products,
+    ownedBatches,
+    branchStock,
+    rawAccounts,
+    sellerIntakeItems,
+  ] = await Promise.all([
     prisma.customer.findMany({
       where: {
         isActive: true,
@@ -384,7 +354,96 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
         },
       },
     }),
+    prisma.sellerIntakeItem.findMany({
+      where: {
+        sellerIntake: {
+          branchId: {
+            in: branchIds,
+          },
+        },
+      },
+      select: {
+        id: true,
+        productId: true,
+        quantityBrought: true,
+        quantityAssigned: true,
+        quantitySold: true,
+        quantityReturned: true,
+        sellerFixedPrice: true,
+        targetSellingPrice: true,
+        bringingDate: true,
+        product: {
+          select: {
+            name: true,
+          },
+        },
+        sellerIntake: {
+          select: {
+            intakeNumber: true,
+            branchId: true,
+            branch: {
+              select: {
+                name: true,
+              },
+            },
+            seller: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
+
+  const normalizedIntakeBatches = sellerIntakeItems
+    .map((item) => {
+      const remainingQuantity =
+        item.quantityBrought -
+        item.quantityAssigned -
+        item.quantitySold -
+        item.quantityReturned;
+
+      return {
+        id: item.id,
+        branchId: item.sellerIntake.branchId,
+        branchName: item.sellerIntake.branch.name,
+        productId: item.productId,
+        productName: item.product.name,
+        sourceType: "SELLER_CONSIGNMENT" as const,
+        referenceNumber: item.sellerIntake.intakeNumber,
+        sourceName: `Seller: ${item.sellerIntake.seller.fullName}`,
+        receivedAt: item.bringingDate.toISOString(),
+        quantity: item.quantityBrought,
+        quantityAdjustment: 0,
+        adjustedQuantity: item.quantityBrought,
+        soldQuantity: item.quantitySold,
+        transferredQuantity: item.quantityAssigned,
+        remainingQuantity,
+        unitCost: toNumber(item.sellerFixedPrice),
+        sellingPrice: toNumber(item.targetSellingPrice ?? item.sellerFixedPrice),
+      } satisfies OwnedStockBatchOption;
+    })
+    .filter((b) => b.remainingQuantity > 0);
+
+  const allBatches = [
+    ...ownedBatches,
+    ...normalizedIntakeBatches,
+  ].sort((left, right) => {
+    const dateDiff =
+      new Date(left.receivedAt).getTime() - new Date(right.receivedAt).getTime();
+
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+
+    if (left.branchName === right.branchName) {
+      return left.referenceNumber.localeCompare(right.referenceNumber);
+    }
+
+    return left.branchName.localeCompare(right.branchName);
+  });
 
   const inStockProductIds = new Set(branchStock.map((item) => item.productId));
   const accounts = dedupeCashAccountsPerBranch(rawAccounts);
@@ -394,7 +453,7 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
     customers,
     products: products.filter((product) => inStockProductIds.has(product.id)),
     branchStock,
-    ownedBatches,
+    ownedBatches: allBatches,
     accounts: accounts.map((account) => toFinanceAccountOption(account)),
   };
 }

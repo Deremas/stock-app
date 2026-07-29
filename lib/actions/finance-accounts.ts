@@ -51,31 +51,9 @@ export async function createFinanceAccountAction(
 
   try {
     const accountReference = await prisma.$transaction(async (tx) => {
-      const branch = await tx.branch.findFirst({
-        where: {
-          id: parsed.data.branchId,
-          isActive: true,
-          userAssignments: {
-            some: {
-              userId: actor.id,
-              isActive: true,
-            },
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-        },
-      });
-
-      if (!branch) {
-        throw new Error("You do not have access to the selected branch.");
-      }
-
       if (parsed.data.type === "CASH") {
         const existingCashAccount = await tx.financeAccount.findFirst({
           where: {
-            branchId: branch.id,
             type: "CASH",
             isActive: true,
           },
@@ -86,13 +64,12 @@ export async function createFinanceAccountAction(
 
         if (existingCashAccount) {
           throw new Error(
-            "This branch already has its cash account. Use the single cash option for branch cash.",
+            "A global cash account already exists. You cannot create multiple cash accounts.",
           );
         }
       } else {
         const duplicateBankAccount = await tx.financeAccount.findFirst({
           where: {
-            branchId: branch.id,
             type: "BANK",
             isActive: true,
             bankName: bankName ?? null,
@@ -104,7 +81,7 @@ export async function createFinanceAccountAction(
         });
 
         if (duplicateBankAccount) {
-          throw new Error("This bank account already exists for the selected branch.");
+          throw new Error("This bank account already exists globally.");
         }
       }
 
@@ -112,7 +89,7 @@ export async function createFinanceAccountAction(
 
       const account = await tx.financeAccount.create({
         data: {
-          branchId: branch.id,
+          branchId: null,
           code,
           name: accountName,
           type: parsed.data.type,
@@ -131,7 +108,7 @@ export async function createFinanceAccountAction(
         await tx.ledgerEntry.create({
           data: {
             entryDate: new Date(),
-            branchId: branch.id,
+            branchId: actor.activeBranchId,
             financeAccountId: account.id,
             direction: LedgerDirection.DEBIT,
             amount: toDecimal(parsed.data.initialBalance),
@@ -148,7 +125,7 @@ export async function createFinanceAccountAction(
         action: "FINANCE_ACCOUNT_CREATE",
         entityType: "FinanceAccount",
         entityId: account.id,
-        branchId: branch.id,
+        branchId: actor.activeBranchId,
         after: {
           code: account.code,
           name: account.name,
@@ -177,6 +154,104 @@ export async function createFinanceAccountAction(
       message: getActionErrorMessage(
         error,
         "Unable to create the finance account right now.",
+      ),
+    };
+  }
+}
+
+export async function updateFinanceAccountAction(
+  id: string,
+  input: Omit<FinanceAccountFormInput, "initialBalance"> & { isActive?: boolean },
+): Promise<ActionResult> {
+  const actor = await getActionActorByPermission("accounts:manage");
+
+  if (!actor) {
+    return {
+      success: false,
+      message: "You are not allowed to manage finance accounts.",
+    };
+  }
+
+  const accountName = input.type === "CASH" ? "Cash" : input.name;
+  const bankName =
+    input.type === "BANK" ? (normalizeOptionalString(input.bankName) ?? null) : null;
+  const accountNumber =
+    input.type === "BANK" ? (normalizeOptionalString(input.accountNumber) ?? null) : null;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const existing = await tx.financeAccount.findUnique({
+        where: { id },
+      });
+
+      if (!existing) {
+        throw new Error("Account not found.");
+      }
+
+      if (input.type === "BANK") {
+        const duplicate = await tx.financeAccount.findFirst({
+          where: {
+            id: { not: id },
+            type: "BANK",
+            isActive: true,
+            bankName,
+            accountNumber,
+          },
+        });
+        if (duplicate) {
+          throw new Error("This bank account already exists globally.");
+        }
+      }
+
+      const updated = await tx.financeAccount.update({
+        where: { id },
+        data: {
+          name: accountName,
+          type: input.type,
+          bankName,
+          accountNumber,
+          isActive: input.isActive ?? true,
+        },
+      });
+
+      await createAuditLog(tx, {
+        actorUserId: actor.id,
+        action: "FINANCE_ACCOUNT_UPDATE",
+        entityType: "FinanceAccount",
+        entityId: id,
+        branchId: actor.activeBranchId,
+        before: {
+          name: existing.name,
+          type: existing.type,
+          bankName: existing.bankName,
+          accountNumber: existing.accountNumber,
+          isActive: existing.isActive,
+        },
+        after: {
+          name: updated.name,
+          type: updated.type,
+          bankName: updated.bankName,
+          accountNumber: updated.accountNumber,
+          isActive: updated.isActive,
+        },
+      });
+    });
+
+    revalidatePath("/finance/accounts");
+    revalidatePath("/finance/cash");
+    revalidatePath("/finance/ledger");
+    revalidatePath("/dashboard");
+
+    return {
+      success: true,
+      message: "Finance account updated successfully.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: getActionErrorMessage(
+        error,
+        "Unable to update the finance account right now.",
       ),
     };
   }

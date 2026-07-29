@@ -29,11 +29,13 @@ export type OwnedStockBatchOption = {
   branchName: string;
   productId: string;
   productName: string;
-  sourceType: "PURCHASE" | "TRANSFER";
+  sourceType: "PURCHASE" | "TRANSFER" | "SELLER_CONSIGNMENT" | "SELLER_ASSIGNED";
   referenceNumber: string;
   sourceName: string;
   receivedAt: string;
   quantity: number;
+  quantityAdjustment: number;
+  adjustedQuantity: number;
   soldQuantity: number;
   transferredQuantity: number;
   remainingQuantity: number;
@@ -126,6 +128,7 @@ export type SupplierPaymentFormOptions = {
 export type FinanceAccountFormOptions = {
   branches: BranchOption[];
   cashBranchIds: string[];
+  hasGlobalCash: boolean;
 };
 
 export type CashTransferAccountOption = FinanceAccountOption & {

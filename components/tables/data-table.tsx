@@ -59,9 +59,14 @@ function getStatusVariant(value: string) {
     normalized.includes("UNPAID") ||
     normalized.includes("VOID") ||
     normalized.includes("INACTIVE") ||
-    normalized.includes("CANCEL")
+    normalized.includes("CANCEL") ||
+    normalized.startsWith("-")
   ) {
     return "danger" as const;
+  }
+
+  if (normalized.startsWith("+")) {
+    return "success" as const;
   }
 
   return "outline" as const;
@@ -330,11 +335,11 @@ export function DataTable({
                 variant={action.variant ?? "outline"}
                 title={action.label}
                 className={cn(
-                  "h-8 rounded-xl transition-all",
-                  showLabel ? "w-auto px-3 gap-2" : "w-8"
+                  "h-7 rounded-lg transition-all",
+                  showLabel ? "w-auto px-2.5 gap-1.5" : "w-7"
                 )}
               >
-                <a href={action.href} className="flex items-center gap-2">
+                <a href={action.href} className="flex items-center gap-1.5">
                   <Icon className="h-4 w-4 shrink-0" />
                   {showLabel ? (
                     <span className="text-xs font-bold tracking-tight">{action.label}</span>

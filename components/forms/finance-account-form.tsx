@@ -14,7 +14,8 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { createFinanceAccountAction } from "@/lib/actions/finance-accounts";
+import { Switch } from "@/components/ui/switch";
+import { createFinanceAccountAction, updateFinanceAccountAction } from "@/lib/actions/finance-accounts";
 import type { FinanceAccountFormOptions } from "@/lib/types";
 import {
   financeAccountSchema,
@@ -24,35 +25,50 @@ import {
 
 type FinanceAccountFormProps = {
   options: FinanceAccountFormOptions;
+  account?: {
+    id: string;
+    type: "BANK" | "CASH";
+    name: string;
+    bankName: string | null;
+    accountNumber: string | null;
+    isActive: boolean;
+  };
 };
 
-function getDefaultValues(options: FinanceAccountFormOptions): FinanceAccountFormInput {
+function getDefaultValues(
+  account?: FinanceAccountFormProps["account"],
+): FinanceAccountFormInput {
   return {
-    branchId: options.branches[0]?.id ?? "",
-    type: "BANK",
-    name: "",
-    bankName: "",
-    accountNumber: "",
+    branchId: "",
+    type: account?.type ?? "BANK",
+    name: account?.name ?? "",
+    bankName: account?.bankName ?? "",
+    accountNumber: account?.accountNumber ?? "",
     initialBalance: 0,
+    isActive: account?.isActive ?? true,
   };
 }
 
-export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
+export function FinanceAccountForm({ options, account }: FinanceAccountFormProps) {
   const createDialog = useCreateDialog();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const defaultValues = getDefaultValues(options);
+  const defaultValues = getDefaultValues(account);
+  const isEditing = !!account;
 
-  const form = useForm<FinanceAccountFormInput, undefined, FinanceAccountInput>({
+  const form = useForm<
+    FinanceAccountFormInput,
+    undefined,
+    FinanceAccountInput
+  >({
     resolver: zodResolver(financeAccountSchema),
     defaultValues,
   });
 
   const type = form.watch("type");
-  const branchId = form.watch("branchId");
-  const branchHasCashAccount = options.cashBranchIds.includes(branchId);
-  const canSubmit = !(type === "CASH" && branchHasCashAccount);
+  const hasGlobalCash = options.hasGlobalCash;
+  const canSubmit = isEditing || !(type === "CASH" && hasGlobalCash);
 
   useEffect(() => {
     if (type === "CASH") {
@@ -71,7 +87,19 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
   function onSubmit(values: FinanceAccountInput) {
     startTransition(async () => {
       setSubmitError(null);
-      const result = await createFinanceAccountAction(values);
+      let result;
+      if (isEditing && account) {
+        result = await updateFinanceAccountAction(account.id, {
+          branchId: "",
+          type: values.type,
+          name: values.name,
+          bankName: values.bankName,
+          accountNumber: values.accountNumber,
+          isActive: values.isActive,
+        });
+      } else {
+        result = await createFinanceAccountAction(values);
+      }
 
       if (!result.success) {
         setSubmitError(result.message);
@@ -80,25 +108,10 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
       }
 
       toast.success(result.message);
-      form.reset(getDefaultValues(options));
+      form.reset(getDefaultValues());
       router.refresh();
       createDialog?.close();
     });
-  }
-
-  if (options.branches.length === 0) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Assign at least one active branch before creating finance accounts.
-        </p>
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" onClick={() => createDialog?.close()}>
-            Close
-          </Button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -113,7 +126,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
     >
       <Card>
         <CardHeader>
-          <CardTitle>New bank or cash account</CardTitle>
+          <CardTitle>{isEditing ? "Edit finance account" : "New bank or cash account"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <FormFeedback
@@ -123,21 +136,8 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
           />
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="finance-account-branch">Branch</Label>
-              <Select id="finance-account-branch" {...form.register("branchId")}>
-                {options.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-destructive">
-                {form.formState.errors.branchId?.message}
-              </p>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="finance-account-type">Account type</Label>
-              <Select id="finance-account-type" {...form.register("type")}>
+              <Select id="finance-account-type" {...form.register("type")} disabled={isEditing}>
                 <option value="BANK">Bank</option>
                 <option value="CASH">Cash</option>
               </Select>
@@ -145,15 +145,34 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
                 {form.formState.errors.type?.message}
               </p>
             </div>
+            {isEditing && (
+              <div className="flex items-center justify-between rounded-xl border border-border p-3.5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="finance-account-active">Active status</Label>
+                  <p className="text-xs text-muted-foreground">Toggle availability</p>
+                </div>
+                <Controller
+                  control={form.control}
+                  name="isActive"
+                  render={({ field: { value, onChange } }) => (
+                    <Switch
+                      id="finance-account-active"
+                      checked={value ?? true}
+                      onCheckedChange={onChange}
+                    />
+                  )}
+                />
+              </div>
+            )}
           </div>
-          {type === "CASH" ? (
+          {!isEditing && type === "CASH" ? (
             <div className="rounded-2xl border border-border/70 bg-muted/40 p-4 text-sm text-muted-foreground">
-              Each branch uses one shared cash account. It will be created as <span className="font-medium text-foreground">Cash</span> for the selected branch.
+              A single global cash account will be created.
             </div>
           ) : null}
-          {type === "CASH" && branchHasCashAccount ? (
+          {!isEditing && type === "CASH" && hasGlobalCash ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              This branch already has its cash account. Create another bank account instead.
+              A global cash account already exists. You cannot create another.
             </div>
           ) : null}
           <div className="grid gap-4 md:grid-cols-2">
@@ -175,24 +194,26 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
                 <Input value="Cash" readOnly />
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="finance-account-initial-balance">Initial balance</Label>
-              <Controller
-                control={form.control}
-                name="initialBalance"
-                render={({ field: { value, onChange, ref } }) => (
-                  <CurrencyInput
-                    id="finance-account-initial-balance"
-                    value={value as any}
-                    onValueChange={(values) => onChange(values.floatValue ?? 0)}
-                    getInputRef={ref}
-                  />
-                )}
-              />
-              <p className="text-xs text-destructive">
-                {form.formState.errors.initialBalance?.message}
-              </p>
-            </div>
+            {!isEditing && (
+              <div className="space-y-2">
+                <Label htmlFor="finance-account-initial-balance">Initial balance</Label>
+                <Controller
+                  control={form.control}
+                  name="initialBalance"
+                  render={({ field: { value, onChange, ref } }) => (
+                    <CurrencyInput
+                      id="finance-account-initial-balance"
+                      value={typeof value === "number" ? value : 0}
+                      onValueChange={(values) => onChange(values.floatValue ?? 0)}
+                      getInputRef={ref}
+                    />
+                  )}
+                />
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.initialBalance?.message}
+                </p>
+              </div>
+            )}
           </div>
           {type === "BANK" ? (
             <div className="grid gap-4 md:grid-cols-2">
@@ -228,8 +249,9 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="rounded-2xl bg-muted/60 p-4 text-sm text-muted-foreground">
-            Saving a new account can also post an opening balance so the account starts with the
-            correct current amount.
+            {isEditing
+              ? "Saving changes updates account info. Direct ledger entries are unmodified."
+              : "Saving a new account can also post an opening balance so the account starts with the correct current amount."}
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row">
             <Button
@@ -242,7 +264,7 @@ export function FinanceAccountForm({ options }: FinanceAccountFormProps) {
               Cancel
             </Button>
             <Button className="sm:flex-1" type="submit" disabled={isPending || !canSubmit}>
-              {isPending ? "Saving..." : "Create account"}
+              {isPending ? "Saving..." : isEditing ? "Save changes" : "Create account"}
             </Button>
           </div>
         </CardContent>

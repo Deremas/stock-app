@@ -65,7 +65,7 @@ export function ModalTablePage({
 
   return (
     <>
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <PageHeader title={config.title} description={config.description} />
         </div>
@@ -75,7 +75,7 @@ export function ModalTablePage({
               type="button"
               variant="outline"
               size="sm"
-              className="hidden rounded-full px-5 shadow-sm sm:flex"
+              className="hidden rounded-xl px-4 shadow-sm sm:flex"
               onClick={() => {
                 const params = new URLSearchParams(searchParams.toString());
                 params.set("open", "1");
@@ -93,12 +93,8 @@ export function ModalTablePage({
               {config.secondaryActionLabel}
             </Button>
           )}
-          <Button type="button" size="sm" className="rounded-full px-5 shadow-lg" onClick={() => {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set("open", "1");
-            params.delete("bulk"); // Clear any bulk flags when clicking 'New Item'
-            params.delete("mode");
-            router.push(`?${params.toString()}`);
+          <Button type="button" size="sm" className="rounded-xl px-4 shadow-sm" onClick={() => {
+            setOpen(true);
           }}>
             <Plus className="h-4 w-4" />
             {actionLabel}
@@ -131,8 +127,8 @@ export function ModalTablePage({
         </Tabs>
       ) : null}
 
-      <Card className="border-none bg-transparent shadow-none sm:bg-card sm:border sm:shadow-sm">
-        <CardContent className="p-4">
+      <Card className="border border-border/70 bg-card shadow-sm">
+        <CardContent className="p-3 sm:p-4">
           <DataTable
             columns={config.columns}
             data={config.rows}
@@ -144,14 +140,14 @@ export function ModalTablePage({
         </CardContent>
       </Card>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[calc(100svh-2rem)] max-w-3xl overflow-y-auto p-0">
-          <div className="border-b border-border/70 px-4 py-4 sm:px-6">
+        <DialogContent className="grid max-h-[calc(100svh-2rem)] max-w-3xl grid-rows-[auto_1fr] overflow-hidden p-0">
+          <div className="border-b border-border/70 bg-card px-4 py-4 sm:px-6">
             <DialogHeader>
-              <DialogTitle>{dialogTitle}</DialogTitle>
+              <DialogTitle className="text-xl">{dialogTitle}</DialogTitle>
               <DialogDescription>{dialogDescription}</DialogDescription>
             </DialogHeader>
           </div>
-          <div className="p-4 sm:p-6">
+          <div className="min-h-0 overflow-y-auto p-4 sm:p-6">
             <CreateDialogContext.Provider value={{ close: () => setOpen(false) }}>
               {children}
             </CreateDialogContext.Provider>

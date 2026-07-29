@@ -44,7 +44,7 @@ const pool =
     connectionString: normalizeDatabaseUrl(process.env.DATABASE_URL),
     max: toPositiveInteger(
       process.env.PG_POOL_MAX,
-      process.env.NODE_ENV === "development" ? 10 : 5,
+      process.env.NODE_ENV === "development" ? 10 : 1,
     ),
     idleTimeoutMillis: toPositiveInteger(process.env.PG_IDLE_TIMEOUT_MS, 30_000),
     connectionTimeoutMillis: toPositiveInteger(

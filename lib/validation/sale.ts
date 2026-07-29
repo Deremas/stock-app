@@ -6,9 +6,13 @@ export const saleItemSchema = z.object({
   quantity: z.coerce.number().int().positive("Quantity must be greater than zero"),
   unitPrice: z.coerce.number().positive("Price must be greater than zero"),
   discount: z.coerce.number().nonnegative("Discount must be zero or more"),
+  fixedDiscount: z.coerce.number().nonnegative("Fixed discount must be zero or more").optional().default(0),
 }).refine((value) => value.discount <= value.unitPrice, {
   message: "Discount cannot exceed unit price",
   path: ["discount"],
+}).refine((value) => value.fixedDiscount <= value.quantity * (value.unitPrice - value.discount), {
+  message: "Fixed discount cannot exceed the line subtotal",
+  path: ["fixedDiscount"],
 });
 
 export const saleSchema = z.object({

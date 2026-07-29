@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Package, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
@@ -13,6 +13,22 @@ import {
 import { getIcon } from "@/lib/icons";
 import type { AppRole } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
+
+function getSectionAccent(title: string) {
+  const accents: Record<string, string> = {
+    Dashboard: "text-indigo-600 dark:text-indigo-300",
+    Inventory: "text-violet-600 dark:text-violet-300",
+    Sales: "text-emerald-600 dark:text-emerald-300",
+    Purchases: "text-amber-600 dark:text-amber-300",
+    Sellers: "text-sky-600 dark:text-sky-300",
+    Expenses: "text-rose-600 dark:text-rose-300",
+    Finance: "text-cyan-600 dark:text-cyan-300",
+    Reports: "text-purple-600 dark:text-purple-300",
+    Administration: "text-slate-600 dark:text-slate-300",
+  };
+
+  return accents[title] ?? "text-primary";
+}
 
 export function AppSidebar({
   role,
@@ -51,19 +67,24 @@ export function AppSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-[60] flex w-64 max-w-[calc(100vw-2rem)] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl transition-transform duration-200 lg:z-40 lg:shadow-none",
+          "fixed inset-y-0 left-0 z-[60] flex w-64 max-w-[calc(100vw-2rem)] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-xl transition-transform duration-200 lg:z-40 lg:shadow-[6px_0_24px_rgba(15,23,42,0.04)]",
           desktopOpen ? "lg:translate-x-0" : "lg:-translate-x-full",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between border-b border-sidebar-border/40 px-5 py-4">
-          <div className="space-y-0.5">
-            <p className="text-sm font-bold tracking-tight">StockPro</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sidebar-foreground/40">Management</p>
+        <div className="flex items-center justify-between border-b border-sidebar-border px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <Package className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 space-y-0.5">
+              <p className="truncate text-sm font-bold tracking-tight">StockMaster Pro</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sidebar-foreground/45">Management</p>
+            </div>
           </div>
           <button
             type="button"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-sidebar-accent/10 lg:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-primary/10 lg:hidden"
             onClick={onCloseMobile}
             aria-label="Close sidebar"
           >
@@ -74,6 +95,7 @@ export function AppSidebar({
           <div className="space-y-0.5">
             {entries.map((entry) => {
               const Icon = getIcon(entry.icon);
+              const accentClass = getSectionAccent(entry.title);
 
               if (entry.type === "link") {
                 const active =
@@ -83,10 +105,10 @@ export function AppSidebar({
                   <div
                     key={entry.href}
                     className={cn(
-                      "overflow-hidden rounded-2xl border border-sidebar-border bg-card/65 transition-all duration-200",
+                      "overflow-hidden rounded-2xl border transition-all duration-200",
                       active
-                        ? "border-sidebar-accent/25 bg-sidebar-accent/[0.08] shadow-[0_12px_30px_rgba(14,116,144,0.08)]"
-                        : "bg-card/65",
+                        ? "border-transparent"
+                        : "border-transparent hover:border-sidebar-border/50",
                     )}
                   >
                     <Link
@@ -95,12 +117,12 @@ export function AppSidebar({
                       className={cn(
                         "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
                         active
-                          ? "bg-sidebar-accent text-white shadow-sm"
-                          : "text-sidebar-foreground/80 hover:bg-accent/80 hover:text-sidebar-foreground",
+                          ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/15 dark:bg-white/10 dark:text-white dark:ring-white/15"
+                          : "text-sidebar-foreground/75 hover:bg-muted hover:text-sidebar-foreground dark:hover:bg-white/5 dark:hover:text-white",
                       )}
                       onClick={onNavigate}
                     >
-                      <Icon className="h-4 w-4 shrink-0" />
+                      <Icon className={cn("h-4 w-4 shrink-0", active ? "text-primary dark:text-white" : accentClass)} />
                       <span className="truncate">{entry.title}</span>
                     </Link>
                   </div>
@@ -116,12 +138,17 @@ export function AppSidebar({
                 <div
                   key={entry.title}
                   className={cn(
-                    "overflow-hidden rounded-2xl border border-sidebar-border bg-card/65 transition-all duration-200",
+                    "overflow-hidden rounded-2xl border transition-all duration-200",
                     groupActive &&
-                      "border-sidebar-accent/25 bg-sidebar-accent/[0.08] shadow-[0_12px_30px_rgba(14,116,144,0.08)]",
+                      expanded &&
+                      "border-primary/15 bg-primary/5 shadow-sm dark:border-white/10 dark:bg-white/5",
+                    groupActive &&
+                      !expanded &&
+                      "border-transparent",
                     !groupActive &&
                       expanded &&
-                      "border-border/80 bg-card/90 shadow-[inset_0_0_0_1px_rgba(14,116,144,0.05)]",
+                      "border-sidebar-border bg-muted/70 shadow-sm dark:bg-white/5",
+                    !groupActive && !expanded && "border-transparent hover:border-sidebar-border/50"
                   )}
                 >
                   <button
@@ -129,10 +156,10 @@ export function AppSidebar({
                     className={cn(
                       "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200",
                       groupActive
-                        ? "bg-sidebar-accent/[0.10] text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(14,116,144,0.08)]"
+                        ? "bg-primary/10 text-primary shadow-sm ring-1 ring-primary/15 dark:bg-white/10 dark:text-white dark:ring-white/10"
                         : expanded
-                          ? "bg-card/85 text-sidebar-foreground"
-                        : "text-sidebar-foreground/80 hover:bg-accent/80 hover:text-sidebar-foreground",
+                          ? "text-sidebar-foreground"
+                          : "text-sidebar-foreground/75 hover:bg-muted hover:text-sidebar-foreground dark:hover:bg-white/5 dark:hover:text-white",
                     )}
                     onClick={() =>
                       setOpenGroup((current) =>
@@ -145,23 +172,23 @@ export function AppSidebar({
                       className={cn(
                         "h-8 w-1 shrink-0 rounded-full transition-all duration-200",
                         groupActive
-                          ? "bg-sidebar-accent shadow-[0_0_0_3px_rgba(14,116,144,0.10)]"
+                          ? "bg-primary shadow-[0_0_8px_rgba(79,70,229,0.35)]"
                           : expanded
-                            ? "bg-sidebar-accent/35"
+                            ? "bg-sidebar-foreground/20"
                             : "bg-transparent",
                       )}
                     />
                     <Icon
                       className={cn(
                         "h-4 w-4 shrink-0 transition-colors",
-                        groupActive ? "text-sidebar-accent" : "text-current",
+                        groupActive ? "text-primary dark:text-white" : accentClass,
                       )}
                     />
                     <span className="flex-1">{entry.title}</span>
                     <ChevronDown
                       className={cn(
                         "h-4 w-4 shrink-0 transition-all duration-200",
-                        groupActive && "text-sidebar-accent",
+                        groupActive && "text-primary dark:text-white",
                         expanded && "rotate-180",
                       )}
                     />
@@ -170,7 +197,7 @@ export function AppSidebar({
                     <div
                       className={cn(
                         "space-y-1 px-2 pb-2 pt-1",
-                        groupActive && "border-t border-sidebar-accent/10 bg-background/40",
+                        groupActive && "border-t border-sidebar-border/60 bg-transparent",
                       )}
                     >
                       {entry.items.map((item) => {
@@ -187,12 +214,12 @@ export function AppSidebar({
                             className={cn(
                               "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200",
                               active
-                                ? "bg-sidebar-accent text-white shadow-sm ring-1 ring-sidebar-accent/30"
-                                : "text-sidebar-foreground/75 hover:bg-accent/80 hover:text-sidebar-foreground",
+                                ? "bg-primary/10 font-medium text-primary shadow-sm ring-1 ring-primary/15 dark:bg-white/10 dark:text-white dark:ring-white/15"
+                                : "text-sidebar-foreground/70 hover:bg-muted hover:text-sidebar-foreground dark:hover:bg-white/5 dark:hover:text-white",
                             )}
                             onClick={onNavigate}
                           >
-                            <ItemIcon className="h-4 w-4 shrink-0" />
+                            <ItemIcon className={cn("h-4 w-4 shrink-0", active ? "text-primary dark:text-white" : accentClass)} />
                             <span className="truncate">{item.title}</span>
                           </Link>
                         );

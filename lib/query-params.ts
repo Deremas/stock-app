@@ -4,7 +4,19 @@ export function getSingleSearchParam(
   params: RouteSearchParams | undefined,
   key: string,
 ) {
-  const value = params?.[key];
+  if (!params) return undefined;
+
+  let value = params[key];
+
+  if (value === undefined) {
+    const lowerKey = key.toLowerCase();
+    const foundKey = Object.keys(params).find(
+      (k) => k.toLowerCase() === lowerKey
+    );
+    if (foundKey) {
+      value = params[foundKey];
+    }
+  }
 
   if (Array.isArray(value)) {
     return value[0];

@@ -213,6 +213,7 @@ export async function getSoldItemRows(filters: SalesFilters = {}) {
             select: {
               sellerIntake: {
                 select: {
+                  intakeNumber: true,
                   seller: {
                     select: {
                       fullName: true,
@@ -226,6 +227,7 @@ export async function getSoldItemRows(filters: SalesFilters = {}) {
             select: {
               sellerAssignment: {
                 select: {
+                  assignmentNumber: true,
                   seller: {
                     select: {
                       fullName: true,
@@ -242,6 +244,17 @@ export async function getSoldItemRows(filters: SalesFilters = {}) {
 
   return saleItems.map((saleItem) => {
     const sources = [...new Set(saleItem.allocations.map((item) => item.sourceType))];
+    const sourceNumbers = [
+      ...new Set(
+        saleItem.allocations
+          .map(
+            (item) =>
+              item.sellerAssignmentItem?.sellerAssignment.assignmentNumber ??
+              item.sellerIntakeItem?.sellerIntake.intakeNumber,
+          )
+          .filter(Boolean),
+      ),
+    ];
     const sellers = [
       ...new Set(
         saleItem.allocations
@@ -261,9 +274,12 @@ export async function getSoldItemRows(filters: SalesFilters = {}) {
       product: saleItem.product.name,
       quantity: saleItem.quantity,
       source: sources.length === 1 ? sources[0] : sources.join(" / "),
+      batchNumber: sourceNumbers.length > 0 ? sourceNumbers.join(", ") : "-",
       seller: sellers.length > 0 ? sellers.join(", ") : "-",
       customer: saleItem.sale.customer?.name ?? "Walk-in",
       unitPrice: toNumber(saleItem.unitPrice),
+      discount: toNumber((saleItem as any).discount ?? 0),
+      fixedDiscount: toNumber((saleItem as any).fixedDiscount ?? 0),
       total: toNumber(saleItem.lineTotal),
       soldAt: saleItem.sale.soldAt.toISOString(),
     } satisfies SimpleRow;

@@ -39,7 +39,7 @@ export function AppHeader({
   const activeBranch =
     user.branches.find((branch) => branch.id === selectedBranchId) ?? user.branches[0];
   const topbarControlClass =
-    "border-[hsl(var(--topbar-border)/0.9)] bg-[hsl(var(--topbar-surface-strong)/0.94)] text-[hsl(var(--topbar-foreground))] shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:border-[hsl(var(--topbar-accent)/0.34)] hover:bg-[hsl(var(--topbar-surface-strong))] dark:shadow-[0_16px_32px_rgba(2,8,23,0.34)]";
+    "border-[hsl(var(--topbar-border)/0.9)] bg-[hsl(var(--topbar-surface-strong)/0.96)] text-[hsl(var(--topbar-foreground))] shadow-sm transition hover:border-[hsl(var(--topbar-accent)/0.34)] hover:bg-[hsl(var(--topbar-surface-strong))] dark:shadow-[0_16px_32px_rgba(2,8,23,0.28)]";
   const topbarMutedTextClass = "text-[hsl(var(--topbar-muted))]";
 
   useEffect(() => {
@@ -134,7 +134,7 @@ export function AppHeader({
   }
 
   return (
-    <header className="sticky top-0 z-30 max-w-full shrink-0 overflow-x-clip border-b border-[hsl(var(--topbar-border)/0.86)] bg-[linear-gradient(135deg,hsl(var(--topbar-surface)/0.96),hsl(var(--topbar-surface-strong)/0.92))] px-4 py-3 text-[hsl(var(--topbar-foreground))] shadow-[0_14px_32px_rgba(14,116,144,0.12)] backdrop-blur supports-[backdrop-filter]:bg-[linear-gradient(135deg,hsl(var(--topbar-surface)/0.9),hsl(var(--topbar-surface-strong)/0.84))] dark:shadow-[0_20px_40px_rgba(2,8,23,0.4)]">
+    <header className="sticky top-0 z-30 max-w-full shrink-0 overflow-x-clip border-b border-[hsl(var(--topbar-border)/0.86)] bg-[hsl(var(--topbar-surface)/0.94)] px-4 py-3 text-[hsl(var(--topbar-foreground))] shadow-[0_10px_28px_rgba(15,23,42,0.08)] backdrop-blur supports-[backdrop-filter]:bg-[hsl(var(--topbar-surface)/0.86)] dark:shadow-[0_20px_40px_rgba(2,8,23,0.34)]">
       <div className="mx-auto w-full min-w-0 max-w-[1360px]">
         <div className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-1.5 sm:gap-3">
           <div className="flex min-w-0 items-center gap-2">
@@ -150,7 +150,7 @@ export function AppHeader({
             </Button>
           </div>
           <div className="min-w-0 text-center">
-            <h1 className="truncate text-[13px] font-bold tracking-tight text-[hsl(var(--topbar-foreground))] sm:text-lg">
+            <h1 className="truncate text-[13px] font-extrabold tracking-tight text-[hsl(var(--topbar-foreground))] sm:text-lg">
               {pageTitle}
             </h1>
           </div>

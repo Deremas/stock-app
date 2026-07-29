@@ -124,6 +124,8 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
+    // Keep compatibility with existing seeded/operator credentials such as
+    // admin / 1234. Require a stronger password before increasing this.
     minPasswordLength: 4,
     maxPasswordLength: 128,
     password: {

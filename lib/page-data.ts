@@ -48,14 +48,15 @@ import { hasPermission } from "@/lib/rbac";
 import type { TablePageConfig } from "@/lib/table";
 
 type TablePageFilters = {
-  customerId?: string;
-  supplierId?: string;
-  sellerId?: string;
-  branchId?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  flow?: string;
-  type?: string;
+  productId?: string | undefined;
+  customerId?: string | undefined;
+  supplierId?: string | undefined;
+  sellerId?: string | undefined;
+  branchId?: string | undefined;
+  dateFrom?: string | undefined;
+  dateTo?: string | undefined;
+  flow?: string | undefined;
+  type?: string | undefined;
 };
 
 export type TablePageKey =
@@ -131,9 +132,6 @@ export async function getTablePageConfig(
         title: "Items",
         description: "Create and manage item records here.",
         actionLabel: "New item",
-        secondaryActionLabel: "Bulk Import",
-        secondaryActionParam: "import",
-        secondaryActionValue: "excel",
         exportFileName: "items",
         columns: [
           { key: "name", header: "Item" },
@@ -157,7 +155,6 @@ export async function getTablePageConfig(
         columns: [
           { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Item" },
-          { key: "aging", header: "Last Movement", type: "status" },
           { key: "ownedBatches", header: "Item Details", type: "multiline", defaultHidden: true },
           { key: "ownedQty", header: "Owned Qty", type: "number" },
           { key: "sellerQty", header: "Seller Qty", type: "number" },
@@ -227,12 +224,16 @@ export async function getTablePageConfig(
           { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
           { key: "type", header: "Movement Type", type: "status" },
-          { key: "ownership", header: "Ownership" },
-          { key: "quantity", header: "Quantity", type: "number" },
-          { key: "reference", header: "Reference" },
+          { key: "ownership", header: "Ownership", defaultHidden: true },
+          { key: "quantity", header: "Qty", type: "status" },
+          { key: "reference", header: "Reference", defaultHidden: true },
+          { key: "notes", header: "Notes" },
           { key: "movementDate", header: "Movement Date", type: "dateTime" },
         ],
-        rows: await getStockMovementRows(activeBranchId),
+        rows: await getStockMovementRows({
+          ...(filters.productId ? { productId: filters.productId } : {}),
+          ...(activeBranchId ? { branchId: activeBranchId } : {}),
+        }),
       };
     case "inventoryTransfers":
       return {
@@ -264,10 +265,14 @@ export async function getTablePageConfig(
           { key: "saleNumber", header: "Sale No." },
           { key: "branch", header: "Branch", defaultHidden: true },
           { key: "product", header: "Product" },
+          { key: "batchNumber", header: "Batch No." },
           { key: "quantity", header: "Qty", type: "number" },
           { key: "source", header: "Source", type: "status" },
           { key: "seller", header: "Seller" },
           { key: "customer", header: "Customer", hideOnMobile: true },
+          { key: "unitPrice", header: "Unit Price", type: "currency" },
+          { key: "discount", header: "Disc/Qty", type: "currency" },
+          { key: "fixedDiscount", header: "Fixed Disc", type: "currency" },
           { key: "total", header: "Total", type: "currency" },
           { key: "soldAt", header: "Sold At", type: "dateTime", hideOnMobile: true },
         ],

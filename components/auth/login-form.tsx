@@ -219,6 +219,11 @@ export function LoginForm({ redirectTo = "/dashboard" }: { redirectTo?: string }
   return (
     <form
       className="space-y-3.5 sm:space-y-4"
+      onFocusCapture={() => {
+        if (authError) {
+          setAuthError(null);
+        }
+      }}
       onChangeCapture={() => {
         if (authError) {
           setAuthError(null);
