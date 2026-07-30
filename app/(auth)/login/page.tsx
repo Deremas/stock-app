@@ -15,7 +15,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const redirectTo = sanitizeReturnToPath(getSingleSearchParam(params, "next"));
 
   return (
-    <div className="h-full overflow-hidden bg-[linear-gradient(135deg,rgba(79,70,229,0.98),rgba(15,23,42,0.98))] lg:grid lg:grid-cols-[1fr_1fr] lg:rounded-[2rem]">
+    <div className="h-full overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.34),transparent_20%),linear-gradient(135deg,rgba(12,94,120,0.98),rgba(15,23,42,0.98))] lg:grid lg:grid-cols-[1fr_1fr] lg:rounded-[2rem]">
       <div className="hidden lg:block">
         <Card className="h-full overflow-hidden border-0 bg-transparent text-white shadow-none">
           <CardContent className="flex h-full flex-col justify-between gap-5 p-6 xl:gap-6 xl:p-7">

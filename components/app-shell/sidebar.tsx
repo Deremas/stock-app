@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 function getSectionAccent(title: string) {
   const accents: Record<string, string> = {
-    Dashboard: "text-indigo-600 dark:text-indigo-300",
+    Dashboard: "text-cyan-700 dark:text-cyan-300",
     Inventory: "text-violet-600 dark:text-violet-300",
     Sales: "text-emerald-600 dark:text-emerald-300",
     Purchases: "text-amber-600 dark:text-amber-300",
@@ -173,7 +173,7 @@ export function AppSidebar({
                       className={cn(
                         "h-8 w-1 shrink-0 rounded-full transition-all duration-200",
                         groupActive
-                          ? "bg-primary shadow-[0_0_8px_rgba(79,70,229,0.35)]"
+                          ? "bg-primary shadow-[0_0_8px_rgba(14,116,144,0.35)]"
                           : expanded
                             ? "bg-sidebar-foreground/20"
                             : "bg-transparent",
