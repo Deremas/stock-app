@@ -17,6 +17,7 @@ export type SimpleColumn = {
   defaultHidden?: boolean;
   align?: "left" | "center" | "right";
   size?: number;
+  compact?: boolean;
 };
 
 export type RowActionConfig = {

@@ -155,7 +155,7 @@ export async function getStockOverviewRows(branchId?: string, role: AppRole = "S
           label: "View Movements",
           href: `/inventory/stock-movements?productId=${row.productId}${row.branchId ? `&branchId=${row.branchId}` : ''}`,
           icon: "view",
-          showLabel: true,
+          showLabel: false,
         })
       );
 
@@ -169,7 +169,7 @@ export async function getStockOverviewRows(branchId?: string, role: AppRole = "S
               branchId: row.branchId,
             }),
             icon: "stockOverview",
-            showLabel: true,
+            showLabel: false,
           }),
         );
       }
@@ -181,7 +181,7 @@ export async function getStockOverviewRows(branchId?: string, role: AppRole = "S
             label: "Transfer",
             href: `/inventory/transfers?open=1&productId=${row.productId}&fromBranchId=${row.branchId}`,
             icon: "transfer",
-            showLabel: true,
+            showLabel: false,
           }),
         );
         

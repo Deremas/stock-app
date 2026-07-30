@@ -64,6 +64,7 @@ export default async function Page({ searchParams }: StockOverviewPageProps) {
             columns={config.columns}
             data={config.rows}
             exportTitle={config.title}
+            compact
             {...(config.exportFileName
               ? { exportFileName: config.exportFileName }
               : {})}

@@ -42,6 +42,16 @@ function ensureHeaderFits(
 }
 
 export function getSimpleColumnSizing(column: SimpleColumn) {
+  if (column.compact) {
+    const size = column.size ?? 88;
+
+    return {
+      size,
+      minSize: Math.max(64, size - 12),
+      maxSize: size + 24,
+    };
+  }
+
   if (column.size) {
     return ensureHeaderFits(column.header, {
       size: column.size,

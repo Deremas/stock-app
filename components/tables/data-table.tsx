@@ -77,11 +77,13 @@ export function DataTable({
   data,
   exportFileName = "table-export",
   exportTitle,
+  compact = false,
 }: {
   columns: SimpleColumn[];
   data: SimpleRow[];
   exportFileName?: string;
   exportTitle?: string;
+  compact?: boolean;
 }) {
   const isMobile = useMediaQuery("(max-width: 640px)");
   const searchParams = useSearchParams();
@@ -108,6 +110,8 @@ export function DataTable({
         accessorKey: column.key,
         header: column.header,
         ...getSimpleColumnSizing(column),
+        enableColumnActions: !column.compact,
+        enableColumnFilter: !column.compact,
         muiTableHeadCellProps: {
           align:
             column.align ??
@@ -220,11 +224,11 @@ export function DataTable({
     columns: mrtColumns,
     data,
     enableGlobalFilter: true,
-    enableDensityToggle: true,
-    enableFullScreenToggle: true,
-    enableColumnFilters: true,
+    enableDensityToggle: !compact,
+    enableFullScreenToggle: !compact,
+    enableColumnFilters: !compact,
     enableColumnActions: true,
-    enableColumnPinning: true,
+    enableColumnPinning: !compact,
     enableHiding: true,
     enableRowActions: hasRowActions,
     enableStickyHeader: true,
@@ -234,7 +238,7 @@ export function DataTable({
       ...(routeSearch ? { showGlobalFilter: true } : {}),
       columnPinning: {
         left: pinnedLeftColumns,
-        ...(hasRowActions ? { right: ["mrt-row-actions"] } : {}),
+        ...(hasRowActions && !compact ? { right: ["mrt-row-actions"] } : {}),
       },
       pagination: {
         pageIndex: 0,
@@ -288,10 +292,16 @@ export function DataTable({
       sx: materialTableBottomToolbarSx,
     },
     muiTableHeadCellProps: {
-      sx: materialTableHeadCellSx,
+      sx: {
+        ...materialTableHeadCellSx,
+        ...(compact ? { paddingInline: "0.25rem" } : {}),
+      },
     },
     muiTableBodyCellProps: {
-      sx: materialTableBodyCellSx,
+      sx: {
+        ...materialTableBodyCellSx,
+        ...(compact ? { paddingInline: "0.25rem" } : {}),
+      },
     },
     muiTableBodyRowProps: {
       sx: materialTableBodyRowSx,
