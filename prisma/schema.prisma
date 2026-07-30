@@ -28,6 +28,10 @@ enum SaleStatus {
   DRAFT
   COMPLETED
   VOIDED
+  PARTIALLY_RETURNED
+  RETURNED
+  PARTIALLY_EXCHANGED
+  EXCHANGED
 }
 
 enum SalePaymentMethod {
@@ -35,6 +39,7 @@ enum SalePaymentMethod {
   BANK
   MIXED
   CREDIT
+  CHEQUE
 }
 
 enum AccountType {
@@ -58,6 +63,8 @@ enum LedgerEntryType {
   CASH_TRANSFER
   OPENING_BALANCE
   ADJUSTMENT
+  SALES_RETURN
+  SALES_EXCHANGE
 }
 
 enum StockMovementType {
@@ -70,6 +77,7 @@ enum StockMovementType {
   TRANSFER_OUT
   ADJUSTMENT
   CUSTOMER_RETURN
+  SALE_EXCHANGE_OUT
 }
 
 enum StockOwnershipType {
