@@ -21,7 +21,7 @@ const TabsList = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "inline-flex h-12 items-center justify-start rounded-2xl bg-muted/50 p-1.5 text-muted-foreground backdrop-blur-md border border-border/50 shadow-inner",
+      "flex min-h-12 max-w-full items-center justify-start overflow-x-auto overscroll-x-contain rounded-2xl border border-border/50 bg-muted/50 p-1.5 text-muted-foreground shadow-inner backdrop-blur-md [scrollbar-width:thin]",
       className
     )}
     {...props}
@@ -36,7 +36,7 @@ const TabsTrigger = React.forwardRef<
   <button
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl px-6 py-2.5 text-sm font-semibold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95",
+      "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 active:scale-95 sm:px-6",
       active
         ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-100"
         : "hover:bg-background/80 hover:text-foreground",

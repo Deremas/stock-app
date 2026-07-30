@@ -85,7 +85,7 @@ function PurchaseItemPicker({
       <DropdownMenuContent
         align="start"
         collisionPadding={12}
-        className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)] max-w-[min(24rem,calc(100vw-2rem))] p-1"
+        className="w-[min(var(--radix-dropdown-menu-trigger-width),calc(100vw-1rem))] min-w-[min(12rem,calc(100vw-1rem))] max-w-[min(24rem,calc(100vw-1rem))] p-1"
       >
         <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
           <DropdownMenuRadioItem value="">
@@ -102,8 +102,10 @@ function PurchaseItemPicker({
                 disabled={disabled}
                 className="max-w-full"
               >
-                <div className="flex min-w-0 items-center justify-between gap-3">
-                  <span className="truncate">{product.name}</span>
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  <span className="min-w-0 whitespace-normal break-words leading-5">
+                    {product.name}
+                  </span>
                   {disabled ? (
                     <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                       Added
@@ -132,7 +134,7 @@ function getDefaultValues(
     options.branches[0];
 
   return {
-    branchId: "",
+    branchId: defaultBranch?.id ?? "",
     supplierId: "",
     paymentAccountId: "",
     settlementMode: "UNPAID",
@@ -141,7 +143,7 @@ function getDefaultValues(
     note: "",
     items: [
       {
-        productId: "",
+        productId: defaultProduct?.id ?? "",
         quantity: 1,
         unitCost: 0,
         sellingPrice: 0,
@@ -152,7 +154,6 @@ function getDefaultValues(
 
 export function PurchaseForm({
   options,
-  userRole,
   initialBranchId,
   initialProductId,
   mode = "page",
@@ -451,14 +452,23 @@ export function PurchaseForm({
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
-                <Select id="branchId" {...form.register("branchId")}>
-                  <option value="">Select branch</option>
-                  {options.branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.code} - {branch.name}
-                    </option>
-                  ))}
-                </Select>
+                {options.branches.length > 1 ? (
+                  <Select id="branchId" {...form.register("branchId")}>
+                    <option value="">Select branch</option>
+                    {options.branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.code} - {branch.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <>
+                    <div className="flex h-10 w-full items-center rounded-xl border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                      {options.branches[0]?.name ?? "No branch"}
+                    </div>
+                    <input type="hidden" {...form.register("branchId")} />
+                  </>
+                )}
                 {form.formState.errors.branchId?.message ? (
                   <p className="text-xs text-destructive">{form.formState.errors.branchId.message}</p>
                 ) : null}

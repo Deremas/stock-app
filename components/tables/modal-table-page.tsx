@@ -69,7 +69,7 @@ export function ModalTablePage({
         <div className="min-w-0">
           <PageHeader title={config.title} description={config.description} />
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
           {config.secondaryActionLabel && (
             <Button
               type="button"
@@ -93,7 +93,7 @@ export function ModalTablePage({
               {config.secondaryActionLabel}
             </Button>
           )}
-          <Button type="button" size="sm" className="rounded-xl px-4 shadow-sm" onClick={() => {
+          <Button type="button" size="sm" className="min-w-0 flex-1 rounded-xl px-4 shadow-sm sm:flex-none" onClick={() => {
             setOpen(true);
           }}>
             <Plus className="h-4 w-4" />

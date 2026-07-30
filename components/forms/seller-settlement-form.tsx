@@ -467,7 +467,7 @@ export function SellerSettlementForm({
         </CardHeader>
         <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
           <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div>
                 <p className="text-xs text-muted-foreground">Lines</p>
                 <p className="mt-1 text-2xl font-semibold">{fields.length}</p>

@@ -219,7 +219,7 @@ export function TransferForm({ options, initialProductId, initialSourceBranchId 
               Create active branches and items before posting transfers.
             </div>
           ) : null}
-          <div className="grid gap-4 grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sourceBranchId">Source branch</Label>
               <Select id="sourceBranchId" {...form.register("sourceBranchId")}>
@@ -246,7 +246,7 @@ export function TransferForm({ options, initialProductId, initialSourceBranchId 
               </p>
             </div>
           </div>
-          <div className="grid gap-4 grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="transferAt">Transfer date</Label>
               <Input

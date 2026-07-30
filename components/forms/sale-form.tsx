@@ -166,7 +166,6 @@ function getDefaultValues(
 
 export function SaleForm({
   options,
-  userRole,
   initialBranchId,
   initialProductId,
   mode = "page",
@@ -378,7 +377,7 @@ export function SaleForm({
                   </div>
                 ) : null}
                 <div className="grid grid-cols-12 gap-x-4 gap-y-4">
-                  {userRole === "ADMIN" || options.branches.length > 1 ? (
+                  {options.branches.length > 1 ? (
                     <div className="col-span-12 sm:col-span-6 md:col-span-4 lg:col-span-3 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
                       <Label htmlFor="sale-branch">Branch</Label>
                       <Select id="sale-branch" {...form.register("branchId")}>

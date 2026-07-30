@@ -29,8 +29,8 @@ export function TablePage({ config }: { config: TablePageConfig }) {
           <PageHeader {...headerProps} />
         </div>
         {config.actionLabel && config.actionHref ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Button asChild size="sm" className="rounded-full px-5 shadow-lg">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
+            <Button asChild size="sm" className="w-full rounded-full px-5 shadow-lg sm:w-auto">
               <Link href={config.actionHref as Route}>{config.actionLabel}</Link>
             </Button>
           </div>

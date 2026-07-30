@@ -86,7 +86,6 @@ function getDefaultValues(
 
 export function SellerReturnForm({
   options,
-  userRole,
   initialSellerId,
   initialIntakeItemId,
   initialAssignmentItemId,
@@ -280,7 +279,7 @@ export function SellerReturnForm({
             <>
               {/* Summary description removed for simplicity */}
               <div className="grid gap-3 sm:gap-4 sm:grid-cols-3">
-                {userRole === "ADMIN" || options.branches.length > 1 ? (
+                {options.branches.length > 1 ? (
                   <div className="space-y-2">
                     <Label htmlFor="seller-return-branch">Branch</Label>
                     <Select id="seller-return-branch" {...form.register("branchId")}>

@@ -71,7 +71,6 @@ function getDefaultValues(
 
 export function SellerAssignmentForm({
   options,
-  userRole,
   initialBatchId,
   initialSellerId,
 }: SellerAssignmentFormProps) {
@@ -199,7 +198,7 @@ export function SellerAssignmentForm({
           {success ? null : (
             <>
               <div className="grid gap-4 sm:grid-cols-3">
-                {userRole === "ADMIN" || options.branches.length > 1 ? (
+                {options.branches.length > 1 ? (
                   <div className="space-y-2">
                     <Label htmlFor="seller-assignment-branch">Branch</Label>
                     <Select id="seller-assignment-branch" {...form.register("branchId")}>

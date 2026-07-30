@@ -168,6 +168,7 @@ export function getSimpleColumnSizing(column: SimpleColumn) {
 }
 
 export const materialTableToolbarSx = {
+  width: "100%",
   minHeight: "auto",
   gap: "0.75rem",
   flexWrap: "wrap",
@@ -181,6 +182,10 @@ export const materialTableToolbarSx = {
   "& .MuiIconButton-root:hover": {
     backgroundColor: surfaceMutedColor,
   },
+  "& > .MuiBox-root": {
+    maxWidth: "100%",
+    flexWrap: "wrap",
+  },
   "& .MuiSvgIcon-root": {
     color: mutedTextColor,
   },
@@ -193,6 +198,22 @@ export const materialTableBottomToolbarSx = {
   paddingInline: 0,
   "& .MuiTablePagination-toolbar": {
     paddingInline: "0.25rem",
+    minWidth: 0,
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    rowGap: "0.25rem",
+  },
+  "& .MuiTablePagination-spacer": {
+    display: {
+      xs: "none",
+      sm: "block",
+    },
+  },
+  "& .MuiTablePagination-actions": {
+    marginLeft: {
+      xs: "0.25rem",
+      sm: "1rem",
+    },
   },
   "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": {
     color: textColor,

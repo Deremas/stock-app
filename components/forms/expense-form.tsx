@@ -31,7 +31,7 @@ type ExpenseFormProps = {
 
 function getDefaultValues(options: ExpenseFormOptions): ExpenseFormInput {
   return {
-    branchId: "",
+    branchId: options.branches[0]?.id ?? "",
     financeAccountId: "",
     categoryName: "",
     name: "",
@@ -132,14 +132,23 @@ export function ExpenseForm({ options }: ExpenseFormProps) {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="expense-branch">Branch</Label>
-              <Select id="expense-branch" {...form.register("branchId")}>
-                <option value="">Select branch</option>
-                {options.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.code} - {branch.name}
-                  </option>
-                ))}
-              </Select>
+              {options.branches.length > 1 ? (
+                <Select id="expense-branch" {...form.register("branchId")}>
+                  <option value="">Select branch</option>
+                  {options.branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.code} - {branch.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <>
+                  <div className="flex h-10 w-full items-center rounded-xl border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                    {options.branches[0]?.name ?? "No branch"}
+                  </div>
+                  <input type="hidden" {...form.register("branchId")} />
+                </>
+              )}
               <p className="text-xs text-destructive">
                 {form.formState.errors.branchId?.message}
               </p>

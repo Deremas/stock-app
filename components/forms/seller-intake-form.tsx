@@ -57,7 +57,7 @@ function getDefaultValues(
   initialSellerId?: string,
 ): SellerIntakeFormInput {
   return {
-    branchId: "",
+    branchId: options.branches[0]?.id ?? "",
     sellerId: initialSellerId ?? "",
     bringingDate: formatDateForInput(),
     note: "",
@@ -389,14 +389,23 @@ export function SellerIntakeForm({
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="branchId">Branch</Label>
-                <Select id="branchId" {...form.register("branchId")}>
-                  <option value="">Select an option</option>
-                  {options.branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </Select>
+                {options.branches.length > 1 ? (
+                  <Select id="branchId" {...form.register("branchId")}>
+                    <option value="">Select an option</option>
+                    {options.branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <>
+                    <div className="flex h-10 w-full items-center rounded-xl border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+                      {options.branches[0]?.name ?? "No branch"}
+                    </div>
+                    <input type="hidden" {...form.register("branchId")} />
+                  </>
+                )}
                 {form.formState.errors.branchId?.message ? (
                   <p className="text-xs text-destructive">
                     {form.formState.errors.branchId.message}

@@ -249,16 +249,19 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
-            <DropdownMenuContent
+          <DropdownMenuContent
             align="start"
             collisionPadding={12}
             sideOffset={6}
-            className="z-50 min-w-0 p-1"
+            className="z-50 min-w-0 overscroll-contain p-1"
             style={{
-              minWidth: "var(--radix-dropdown-menu-trigger-width)",
+              width:
+                "min(var(--radix-dropdown-menu-trigger-width), calc(100vw - 1rem))",
+              minWidth: "min(12rem, calc(100vw - 1rem))",
               maxWidth: "min(28rem, calc(100vw - 1rem))",
-              maxHeight: "min(18rem, calc(100vh - 6rem))",
+              maxHeight: "min(16rem, calc(100dvh - 2rem))",
               overflowY: "auto",
+              overflowX: "hidden",
               scrollbarWidth: "thin",
             }}
           >
@@ -268,9 +271,11 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                   key={option.key}
                   value={option.value}
                   disabled={option.disabled}
-                  className="max-w-full"
+                  className="max-w-full min-w-0"
                 >
-                  <span className="block min-w-0 py-0.5">{option.label}</span>
+                  <span className="block min-w-0 whitespace-normal break-words py-0.5 leading-5">
+                    {option.label}
+                  </span>
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
