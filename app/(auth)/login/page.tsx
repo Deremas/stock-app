@@ -1,4 +1,4 @@
-import { Package } from "lucide-react";
+import Image from "next/image";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,8 +21,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <CardContent className="flex h-full flex-col justify-between gap-5 p-6 xl:gap-6 xl:p-7">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-white/25 bg-white/14 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-                  <Package className="h-5 w-5" />
+                <div className="h-12 w-12 overflow-hidden rounded-2xl border border-white/40 bg-white shadow-lg shadow-slate-950/15">
+                  <Image
+                    src="/brand/sam-tech-hub-mark.png"
+                    alt=""
+                    width={48}
+                    height={48}
+                    className="h-full w-full object-contain"
+                    priority
+                  />
                 </div>
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/85">
@@ -56,8 +63,15 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <div className="mx-auto max-w-md space-y-4">
               <div className="space-y-2.5">
                 <div className="flex items-center gap-3 lg:hidden">
-                  <div className="rounded-2xl bg-primary/10 p-2.5 text-primary sm:p-3">
-                    <Package className="h-5 w-5" />
+                  <div className="h-11 w-11 overflow-hidden rounded-2xl border border-cyan-100 bg-white shadow-sm sm:h-12 sm:w-12">
+                    <Image
+                      src="/brand/sam-tech-hub-mark.png"
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="h-full w-full object-contain"
+                      priority
+                    />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{APP_NAME}</p>

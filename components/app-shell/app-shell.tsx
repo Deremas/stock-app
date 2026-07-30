@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 
 import { AppHeader } from "@/components/app-shell/header";
 import { AppSidebar } from "@/components/app-shell/sidebar";
-import { BuiltByFooter } from "@/components/shared/built-by-footer";
 import type { CurrentUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -57,9 +56,6 @@ export function AppShell({
             {children}
           </div>
         </main>
-        <div className="border-t border-border/60 px-4 py-4 sm:px-6 lg:px-8">
-          <BuiltByFooter className="mx-auto max-w-[1360px] justify-center" />
-        </div>
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
 "use client";
 
 import type { Route } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Package, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
@@ -17,15 +18,15 @@ import { cn } from "@/lib/utils";
 
 function getSectionAccent(title: string) {
   const accents: Record<string, string> = {
-    Dashboard: "text-cyan-700 dark:text-cyan-300",
-    Inventory: "text-violet-600 dark:text-violet-300",
+    Dashboard: "text-blue-700 dark:text-cyan-300",
+    Inventory: "text-cyan-700 dark:text-cyan-300",
     Sales: "text-emerald-600 dark:text-emerald-300",
-    Purchases: "text-amber-600 dark:text-amber-300",
-    Sellers: "text-sky-600 dark:text-sky-300",
-    Expenses: "text-rose-600 dark:text-rose-300",
-    Finance: "text-cyan-600 dark:text-cyan-300",
-    Reports: "text-purple-600 dark:text-purple-300",
-    Administration: "text-slate-600 dark:text-slate-300",
+    Purchases: "text-sky-700 dark:text-sky-300",
+    Sellers: "text-teal-600 dark:text-teal-300",
+    Expenses: "text-cyan-700 dark:text-cyan-300",
+    Finance: "text-blue-700 dark:text-blue-300",
+    Reports: "text-teal-700 dark:text-teal-300",
+    Administration: "text-sky-700 dark:text-sky-300",
   };
 
   return accents[title] ?? "text-primary";
@@ -75,8 +76,15 @@ export function AppSidebar({
       >
         <div className="flex items-center justify-between border-b border-sidebar-border px-5 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <Package className="h-5 w-5" />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-cyan-100 bg-white shadow-sm">
+              <Image
+                src="/brand/sam-tech-hub-mark.png"
+                alt=""
+                width={40}
+                height={40}
+                className="h-full w-full object-contain"
+                priority
+              />
             </div>
             <div className="min-w-0 space-y-0.5">
               <p className="truncate text-sm font-bold tracking-tight">{APP_NAME}</p>

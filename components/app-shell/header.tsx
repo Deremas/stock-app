@@ -46,7 +46,7 @@ export function AppHeader({
     setSelectedBranchId(user.activeBranchId);
   }, [user.activeBranchId]);
 
-  const branchControl = activeBranch ? (
+  const branchControl = activeBranch && user.branches.length > 1 ? (
     <div className="min-w-0 max-w-[7.5rem] sm:max-w-[20rem]">
       <Select
         aria-label="Switch active branch"
@@ -100,7 +100,7 @@ export function AppHeader({
         ))}
       </Select>
     </div>
-  ) : user.role === "ADMIN" ? (
+  ) : !activeBranch && user.role === "ADMIN" ? (
     pathname === "/admin/branches" ? null : (
       <Button
         asChild
@@ -113,13 +113,13 @@ export function AppHeader({
         </Link>
       </Button>
     )
-  ) : (
+  ) : !activeBranch ? (
     <div
       className={`rounded-full border border-dashed px-3 py-2 text-sm ${topbarControlClass} ${topbarMutedTextClass}`}
     >
       No branch created yet
     </div>
-  );
+  ) : null;
 
   function handleSignOut() {
     startSignOutTransition(async () => {

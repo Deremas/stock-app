@@ -8,7 +8,11 @@ import "@/app/globals.css";
 export const metadata: Metadata = {
   title: APP_NAME,
   description:
-    "Stock, sales, purchasing, and finance management for phone and laptop accessories.",
+    "Stock, sales, purchasing, and finance management for accessories and everyday essentials.",
+  icons: {
+    icon: "/brand/sam-tech-hub-mark.png",
+    apple: "/brand/sam-tech-hub-mark.png",
+  },
 };
 
 export default function RootLayout({

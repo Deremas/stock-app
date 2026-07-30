@@ -1,66 +1,69 @@
 import { LowStockCard } from "@/components/dashboard/low-stock-card";
 import { MetricGrid } from "@/components/dashboard/metric-grid";
 import { RecentTransactionsCard } from "@/components/dashboard/recent-transactions-card";
-import { ReportShowcaseCard } from "@/components/dashboard/report-showcase-card";
 import { QuickActionsCard } from "@/components/dashboard/quick-actions-card";
 import { SalesTrendChart } from "@/components/dashboard/sales-trend-chart";
-import { TopProductsCard } from "@/components/dashboard/top-products-card";
 import { PageHeader } from "@/components/app-shell/page-header";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getDashboardSnapshot } from "@/lib/page-data";
 import { hasPermission } from "@/lib/rbac";
+
+const adminMetricTitles = new Set([
+  "Today's Total Sales",
+  "Today's Profit",
+  "Today's Cash Sales",
+  "Today's Credit Sales",
+  "Low Stock Count",
+  "Customer Receivables",
+]);
+
+const salesMetricTitles = new Set([
+  "Today's Total Sales",
+  "Today's Cash Sales",
+  "Today's Credit Sales",
+  "Low Stock Count",
+]);
 
 export default async function DashboardPage() {
   const currentUser = await getCurrentUser();
   const role = currentUser?.role ?? "SALES";
   const dashboardSnapshot = await getDashboardSnapshot(role, currentUser?.activeBranchId);
   const canViewReports = hasPermission(role, "reports:view");
-  const showSalesTrend = canViewReports;
+  const visibleMetricTitles = role === "ADMIN" ? adminMetricTitles : salesMetricTitles;
+  const visibleMetrics = dashboardSnapshot.metrics.filter((metric) =>
+    visibleMetricTitles.has(metric.title),
+  );
 
   return (
-    <div className="min-w-0 space-y-6">
+    <div className="min-w-0 space-y-5">
       <PageHeader
         eyebrow="Dashboard"
-        title="Operations Overview"
+        title={role === "ADMIN" ? "Shop Overview" : "Sales Overview"}
         description={
           role === "ADMIN"
-            ? "Branch-aware stock, sales, credit, and finance snapshots for today's trading activity."
-            : "Today's sales, customer credit, and stock alerts for the active branch."
+            ? "Today at Metebaber: sales, profit, credit, and stock requiring attention."
+            : "Your essential sales totals and stock alerts for today."
         }
       />
-      <MetricGrid metrics={dashboardSnapshot.metrics} mobileColumns={2} />
+      <MetricGrid metrics={visibleMetrics} mobileColumns={2} />
+      <QuickActionsCard role={role} />
       <div
-        className={`grid min-w-0 gap-6${
-          canViewReports ? " xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]" : ""
-        }`}
+        className={
+          canViewReports
+            ? "grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(20rem,0.85fr)]"
+            : "min-w-0"
+        }
       >
-        <div className="min-w-0">
-          <QuickActionsCard role={role} />
-        </div>
         {canViewReports ? (
-          <div className="min-w-0">
-            <ReportShowcaseCard />
-          </div>
-        ) : null}
-      </div>
-      {showSalesTrend ? (
-        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             <SalesTrendChart data={dashboardSnapshot.salesTrend} />
           </div>
-          <div className="min-w-0">
-            <RecentTransactionsCard transactions={dashboardSnapshot.recentTransactions} />
-          </div>
-        </div>
-      ) : (
+        ) : null}
         <div className="min-w-0">
           <RecentTransactionsCard transactions={dashboardSnapshot.recentTransactions} />
         </div>
-      )}
-      <div className="grid min-w-0 gap-6 xl:grid-cols-2">
-        <div className="min-w-0">
-          <TopProductsCard products={dashboardSnapshot.topProducts} />
-        </div>
+      </div>
+      <div className="min-w-0">
         <div className="min-w-0">
           <LowStockCard rows={dashboardSnapshot.lowStock} />
         </div>
