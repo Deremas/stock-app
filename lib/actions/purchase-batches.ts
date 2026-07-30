@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { Prisma } from "@/generated/prisma/client";
 import {
   InventoryAdjustmentType,
   StockMovementType,
@@ -291,6 +292,8 @@ export async function adjustOwnedStockBatchAction(
         productName: batch.product.name,
         referenceNumber,
       };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/inventory/stock");

@@ -8,6 +8,15 @@ export function createDocumentNumber(prefix: string, date: Date = new Date()) {
 }
 
 export function getActionErrorMessage(error: unknown, fallback: string) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2034"
+  ) {
+    return "Another transaction changed this record at the same time. Please try again.";
+  }
+
   if (error instanceof Error && error.message.trim()) {
     const message = error.message.trim();
     const normalized = message.toLowerCase();

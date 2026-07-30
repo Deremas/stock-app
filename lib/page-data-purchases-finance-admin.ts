@@ -403,6 +403,8 @@ export async function getCashTransferRows(branchId?: string) {
       amount: number;
       transferDate: string;
       status: string;
+      debitAmount: number;
+      creditAmount: number;
     }
   >();
 
@@ -415,18 +417,30 @@ export async function getCashTransferRows(branchId?: string) {
       branch: row.branch?.name ?? "-",
       amount: toNumber(row.amount),
       transferDate: row.entryDate.toISOString(),
-      status: "POSTED",
+      status: "INCOMPLETE",
+      debitAmount: 0,
+      creditAmount: 0,
     };
 
     if (row.direction === "CREDIT") {
       existing.fromAccount = row.financeAccount
         ? formatFinanceAccountLabel(row.financeAccount)
         : "-";
+      existing.creditAmount += toNumber(row.amount);
     } else {
       existing.toAccount = row.financeAccount
         ? formatFinanceAccountLabel(row.financeAccount)
         : "-";
+      existing.debitAmount += toNumber(row.amount);
     }
+
+    existing.amount = Math.max(existing.creditAmount, existing.debitAmount);
+    existing.status =
+      existing.creditAmount > 0 &&
+      existing.debitAmount > 0 &&
+      Math.abs(existing.creditAmount - existing.debitAmount) < 0.005
+        ? "POSTED"
+        : "INCOMPLETE";
 
     if (row.entryDate.toISOString() > existing.transferDate) {
       existing.transferDate = row.entryDate.toISOString();
@@ -435,9 +449,11 @@ export async function getCashTransferRows(branchId?: string) {
     transferMap.set(row.referenceId, existing);
   }
 
-  return [...transferMap.values()].sort((left, right) =>
-    right.transferDate.localeCompare(left.transferDate),
-  );
+  return [...transferMap.values()]
+    .map(({ debitAmount: _debitAmount, creditAmount: _creditAmount, ...row }) => row)
+    .sort((left, right) =>
+      right.transferDate.localeCompare(left.transferDate),
+    );
 }
 
 export async function getExpenseRows(branchId?: string) {

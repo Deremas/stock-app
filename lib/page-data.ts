@@ -660,9 +660,9 @@ export async function getTablePageConfig(
     case "financeCash":
       return {
         eyebrow: "Finance",
-        title: "Cash",
+        title: "Cash to Bank",
         description:
-          "Cash account balances by branch with quick bank deposit actions.",
+          "Review available shop cash and deposit it into a bank account.",
         actionLabel: "Deposit cash",
         exportFileName: "cash-accounts",
         columns: [

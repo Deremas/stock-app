@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@/generated/prisma/client";
 import { LedgerDirection, LedgerEntryType, PaymentStatus } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -68,6 +69,15 @@ export async function createCustomerPaymentAction(
           id: parsed.data.saleId,
           customerId: parsed.data.customerId,
           status: "COMPLETED",
+          branch: {
+            isActive: true,
+            userAssignments: {
+              some: {
+                userId: actor.id,
+                isActive: true,
+              },
+            },
+          },
         },
         select: {
           id: true,
@@ -201,6 +211,8 @@ export async function createCustomerPaymentAction(
       });
 
       return payment.paymentNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/sales/customers");

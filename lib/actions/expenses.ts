@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@/generated/prisma/client";
 import { LedgerDirection, LedgerEntryType } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -13,6 +14,10 @@ import {
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
+import {
+  assertSufficientFinanceBalance,
+  calculateFinanceAccountBalance,
+} from "@/lib/finance-ledger";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
@@ -90,12 +95,26 @@ export async function createExpenseAction(
         select: {
           id: true,
           name: true,
+          ledgerEntries: {
+            select: {
+              amount: true,
+              direction: true,
+            },
+          },
         },
       });
 
       if (!financeAccount) {
         throw new Error("Selected payment account was not found.");
       }
+
+      assertSufficientFinanceBalance({
+        accountName: financeAccount.name,
+        amount: parsed.data.amount,
+        availableBalance: calculateFinanceAccountBalance(
+          financeAccount.ledgerEntries,
+        ),
+      });
 
       const category = await tx.expenseCategory.upsert({
         where: {
@@ -165,6 +184,8 @@ export async function createExpenseAction(
       });
 
       return expense.expenseNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/finance/expenses");

@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@/generated/prisma/client";
 import {
-  LedgerDirection,
-  LedgerEntryType,
   PaymentStatus,
   PurchaseStatus,
   StockMovementType,
@@ -20,6 +19,11 @@ import {
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
+import {
+  assertSufficientFinanceBalance,
+  calculateFinanceAccountBalance,
+  getPurchasePaymentPosting,
+} from "@/lib/finance-ledger";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import {
@@ -112,9 +116,19 @@ export async function createPurchaseAction(
       }
 
       const paymentAccount = paymentAccountId
-        ? await tx.financeAccount.findUnique({
-            where: { id: paymentAccountId },
-            select: { id: true, name: true, branchId: true },
+        ? await tx.financeAccount.findFirst({
+            where: { id: paymentAccountId, isActive: true },
+            select: {
+              id: true,
+              name: true,
+              branchId: true,
+              ledgerEntries: {
+                select: {
+                  amount: true,
+                  direction: true,
+                },
+              },
+            },
           })
         : null;
 
@@ -166,6 +180,17 @@ export async function createPurchaseAction(
           : amountDue === 0
             ? PaymentStatus.PAID
             : PaymentStatus.PARTIAL;
+
+      if (amountPaid > 0 && paymentAccount) {
+        assertSufficientFinanceBalance({
+          accountName: paymentAccount.name,
+          amount: amountPaid,
+          availableBalance: calculateFinanceAccountBalance(
+            paymentAccount.ledgerEntries,
+          ),
+        });
+      }
+
       const purchaseNumber = createDocumentNumber("PUR", purchasedAt);
 
       const purchase = await tx.purchase.create({
@@ -247,23 +272,30 @@ export async function createPurchaseAction(
         });
       }
 
-      if (amountPaid > 0 && paymentAccountId && paymentAccount && supplier) {
-        const supplierPayment = await tx.supplierPayment.create({
-          data: {
-            paymentNumber: createDocumentNumber("SPM", purchasedAt),
-            supplierId: supplier.id,
-            purchaseId: purchase.id,
-            branchId: branch.id,
-            financeAccountId: paymentAccount.id,
-            recordedById: actor.id,
-            amount: toDecimal(amountPaid),
-            paymentDate: purchasedAt,
-            note: `Initial payment posted with purchase ${purchase.purchaseNumber}.`,
-          },
-          select: {
-            id: true,
-            paymentNumber: true,
-          },
+      if (amountPaid > 0 && paymentAccountId && paymentAccount) {
+        const supplierPayment = supplier
+          ? await tx.supplierPayment.create({
+              data: {
+                paymentNumber: createDocumentNumber("SPM", purchasedAt),
+                supplierId: supplier.id,
+                purchaseId: purchase.id,
+                branchId: branch.id,
+                financeAccountId: paymentAccount.id,
+                recordedById: actor.id,
+                amount: toDecimal(amountPaid),
+                paymentDate: purchasedAt,
+                note: `Initial payment posted with purchase ${purchase.purchaseNumber}.`,
+              },
+              select: {
+                id: true,
+                paymentNumber: true,
+              },
+            })
+          : null;
+        const paymentPosting = getPurchasePaymentPosting({
+          amount: amountPaid,
+          purchaseId: purchase.id,
+          supplierPayment,
         });
 
         await tx.ledgerEntry.create({
@@ -271,12 +303,14 @@ export async function createPurchaseAction(
             entryDate: purchasedAt,
             branchId: branch.id,
             financeAccountId: paymentAccount.id,
-            direction: LedgerDirection.CREDIT,
-            amount: toDecimal(amountPaid),
-            entryType: LedgerEntryType.SUPPLIER_PAYMENT,
-            referenceType: "SupplierPayment",
-            referenceId: supplierPayment.id,
-            description: `Supplier payment ${supplierPayment.paymentNumber} for ${purchase.purchaseNumber}`,
+            direction: paymentPosting.direction,
+            amount: toDecimal(paymentPosting.amount),
+            entryType: paymentPosting.entryType,
+            referenceType: paymentPosting.referenceType,
+            referenceId: paymentPosting.referenceId,
+            description: supplierPayment
+              ? `Supplier payment ${supplierPayment.paymentNumber} for ${purchase.purchaseNumber}`
+              : `Direct purchase payment for ${purchase.purchaseNumber}`,
           },
         });
       }
@@ -300,6 +334,8 @@ export async function createPurchaseAction(
       });
 
       return purchase.purchaseNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/purchases/list");

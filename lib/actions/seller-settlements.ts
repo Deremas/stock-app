@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@/generated/prisma/client";
 import { LedgerDirection, LedgerEntryType, SettlementStatus } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -13,6 +14,10 @@ import {
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
+import {
+  assertSufficientFinanceBalance,
+  calculateFinanceAccountBalance,
+} from "@/lib/finance-ledger";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
@@ -86,9 +91,16 @@ export async function createSellerSettlementAction(
         throw new Error("Selected partner was not found.");
       }
 
-      const branch = await tx.branch.findUnique({
+      const branch = await tx.branch.findFirst({
         where: {
           id: parsed.data.branchId,
+          isActive: true,
+          userAssignments: {
+            some: {
+              userId: actor.id,
+              isActive: true,
+            },
+          },
         },
         select: {
           id: true,
@@ -110,6 +122,12 @@ export async function createSellerSettlementAction(
           name: true,
           branchId: true,
           type: true,
+          ledgerEntries: {
+            select: {
+              amount: true,
+              direction: true,
+            },
+          },
         },
       });
 
@@ -249,6 +267,14 @@ export async function createSellerSettlementAction(
         throw new Error("Settlement amount must be greater than zero.");
       }
 
+      assertSufficientFinanceBalance({
+        accountName: financeAccount.name,
+        amount,
+        availableBalance: calculateFinanceAccountBalance(
+          financeAccount.ledgerEntries,
+        ),
+      });
+
       const settlementNumber = createDocumentNumber("SET", settlementDate);
       const settlement = await tx.sellerSettlement.create({
         data: {
@@ -314,6 +340,8 @@ export async function createSellerSettlementAction(
       });
 
       return settlement.settlementNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/sellers/list");

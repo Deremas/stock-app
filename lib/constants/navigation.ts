@@ -205,7 +205,7 @@ export const navigationEntries: NavigationEntry[] = [
         permission: "accounts:manage",
       },
       {
-        title: "Cash",
+        title: "Cash to Bank",
         href: "/finance/cash",
         icon: "cashTransfers",
         permission: "cash-transfers:manage",
@@ -251,7 +251,7 @@ const hiddenPageTitles: NavigationItem[] = [
   { title: "Supplier Payments", href: "/purchases/supplier-payments", icon: "supplierPayments" },
   { title: "Seller Overview", href: "/sellers", icon: "sellers" },
   { title: "Received Records", href: "/sellers/intake-records", icon: "purchaseList" },
-  { title: "Cash", href: "/finance/cash", icon: "cashTransfers" },
+  { title: "Cash to Bank", href: "/finance/cash", icon: "cashTransfers" },
   { title: "Cash Transfers", href: "/finance/cash-transfers", icon: "cashTransfers" },
   { title: "Roles", href: "/admin/roles", icon: "roles", roles: ["ADMIN"] },
   { title: "Audit Logs", href: "/admin/audit-logs", icon: "auditLogs", roles: ["ADMIN"] },

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { Prisma } from "@/generated/prisma/client";
 import { LedgerDirection, LedgerEntryType, PaymentStatus } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -13,6 +14,10 @@ import {
   parseInputDate,
   toDecimal,
 } from "@/lib/actions/common";
+import {
+  assertSufficientFinanceBalance,
+  calculateFinanceAccountBalance,
+} from "@/lib/finance-ledger";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
 import {
@@ -60,6 +65,15 @@ export async function createSupplierPaymentAction(
           id: parsed.data.purchaseId,
           supplierId: parsed.data.supplierId,
           status: "POSTED",
+          branch: {
+            isActive: true,
+            userAssignments: {
+              some: {
+                userId: actor.id,
+                isActive: true,
+              },
+            },
+          },
         },
         select: {
           id: true,
@@ -99,6 +113,12 @@ export async function createSupplierPaymentAction(
           id: true,
           name: true,
           branchId: true,
+          ledgerEntries: {
+            select: {
+              amount: true,
+              direction: true,
+            },
+          },
         },
       });
 
@@ -124,6 +144,14 @@ export async function createSupplierPaymentAction(
       if (amount > currentDue) {
         throw new Error("Payment amount cannot exceed the outstanding balance.");
       }
+
+      assertSufficientFinanceBalance({
+        accountName: financeAccount.name,
+        amount,
+        availableBalance: calculateFinanceAccountBalance(
+          financeAccount.ledgerEntries,
+        ),
+      });
 
       const nextAmountDue = Math.max(0, Number((currentDue - amount).toFixed(2)));
       const nextAmountPaid = Number((Number(purchase.amountPaid) + amount).toFixed(2));
@@ -195,6 +223,8 @@ export async function createSupplierPaymentAction(
       });
 
       return payment.paymentNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/purchases/suppliers");

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import {
   LedgerDirection,
   LedgerEntryType,
@@ -604,6 +604,8 @@ export async function createSaleAction(
       });
 
       return sale.saleNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/sales/new");

@@ -11,6 +11,7 @@ const oneDayInSeconds = 60 * 60 * 24;
 const authUnavailableMessage =
   "Sign-in is temporarily unavailable. Please try again in a moment.";
 const localhostAuthURL = "http://localhost:3000";
+const productionAuthURL = "https://stock.samtechub.com";
 
 function getVercelURL(value: string | undefined) {
   if (!value) {
@@ -34,10 +35,11 @@ function getAuthBaseURL() {
   const fallback =
     configuredURL && !configuredURL.includes("localhost")
       ? configuredURL
-      : vercelProductionURL ?? vercelDeploymentURL ?? localhostAuthURL;
+      : productionAuthURL;
 
   return {
     allowedHosts: [
+      "stock.samtechub.com",
       "the-stock-app.vercel.app",
       "*.vercel.app",
       ...[configuredURL, vercelProductionURL, vercelDeploymentURL]
@@ -113,7 +115,7 @@ function rethrowAuthAvailabilityError(error: unknown): never {
 }
 
 export const auth = betterAuth({
-  appName: "Stock Management App",
+  appName: "Sam Tech Hub",
   baseURL: getAuthBaseURL(),
   secret:
     process.env.BETTER_AUTH_SECRET ??
@@ -189,10 +191,16 @@ export const auth = betterAuth({
       }
 
       try {
-        const body = ctx.body as {
-          email?: unknown;
-          username?: unknown;
-        };
+        const body = ctx.body as
+          | {
+              email?: unknown;
+              username?: unknown;
+            }
+          | undefined;
+
+        if (!body) {
+          return;
+        }
 
         if (typeof body.email === "string") {
           const email = body.email.trim().toLowerCase();

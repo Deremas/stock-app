@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { StockMovementType, StockOwnershipType, TransferStatus } from "@/generated/prisma/enums";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 import type { ActionResult } from "@/lib/actions/common";
 import {
@@ -390,6 +390,8 @@ export async function createTransferAction(
       });
 
       return transfer.transferNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/inventory/transfers");

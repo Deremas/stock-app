@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import {
   ArrowRight,
+  Landmark,
   ReceiptText,
   ShoppingCart,
   SlidersHorizontal,
@@ -49,6 +50,13 @@ const quickActions: QuickAction[] = [
     permission: "expenses:create",
     icon: ReceiptText,
   },
+  {
+    title: "Cash to Bank",
+    description: "Deposit shop cash into a bank account.",
+    href: "/finance/cash?open=1",
+    permission: "cash-transfers:manage",
+    icon: Landmark,
+  },
 ];
 
 export function QuickActionsCard({ role }: { role: AppRole }) {
@@ -60,7 +68,7 @@ export function QuickActionsCard({ role }: { role: AppRole }) {
         <CardTitle className="text-lg">Quick Actions</CardTitle>
         <CardDescription>Start the tasks used most often.</CardDescription>
       </CardHeader>
-      <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <CardContent className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {visibleActions.map((action) => {
           const Icon = action.icon;
 

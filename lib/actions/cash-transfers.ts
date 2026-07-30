@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { LedgerDirection, LedgerEntryType } from "@/generated/prisma/enums";
+import { Prisma } from "@/generated/prisma/client";
+import { LedgerEntryType } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
 import {
@@ -19,17 +20,11 @@ import {
   cashTransferSchema,
   type CashTransferFormInput,
 } from "@/lib/validation/cash-transfer";
-
-function getAccountBalance(entries: { amount: unknown; direction: "DEBIT" | "CREDIT" }[]) {
-  return Number(
-    entries
-      .reduce((sum, entry) => {
-        const amount = Number(entry.amount ?? 0);
-        return entry.direction === "DEBIT" ? sum + amount : sum - amount;
-      }, 0)
-      .toFixed(2),
-  );
-}
+import {
+  assertSufficientFinanceBalance,
+  calculateFinanceAccountBalance,
+  getCashTransferPostings,
+} from "@/lib/finance-ledger";
 
 export async function createCashTransferAction(
   input: CashTransferFormInput,
@@ -128,14 +123,18 @@ export async function createCashTransferAction(
         throw new Error("Selected bank account was not found.");
       }
 
-      const availableBalance = getAccountBalance(fromAccount.ledgerEntries);
-
-      if (parsed.data.amount > availableBalance) {
-        throw new Error("Transfer amount cannot exceed the available cash balance.");
-      }
+      const availableBalance = calculateFinanceAccountBalance(
+        fromAccount.ledgerEntries,
+      );
+      assertSufficientFinanceBalance({
+        accountName: fromAccount.name,
+        amount: parsed.data.amount,
+        availableBalance,
+      });
 
       const transferNumber = createDocumentNumber("CTR", transferDate);
       const description = `Cash deposit ${transferNumber} from ${fromAccount.name} to ${toAccount.name}`;
+      const postings = getCashTransferPostings(parsed.data.amount);
 
       await tx.ledgerEntry.createMany({
         data: [
@@ -143,8 +142,8 @@ export async function createCashTransferAction(
             entryDate: transferDate,
             branchId: branch.id,
             financeAccountId: fromAccount.id,
-            direction: LedgerDirection.CREDIT,
-            amount: toDecimal(parsed.data.amount),
+            direction: postings.from.direction,
+            amount: toDecimal(postings.from.amount),
             entryType: LedgerEntryType.CASH_TRANSFER,
             referenceType: "CashTransfer",
             referenceId: transferNumber,
@@ -155,8 +154,8 @@ export async function createCashTransferAction(
             entryDate: transferDate,
             branchId: branch.id,
             financeAccountId: toAccount.id,
-            direction: LedgerDirection.DEBIT,
-            amount: toDecimal(parsed.data.amount),
+            direction: postings.to.direction,
+            amount: toDecimal(postings.to.amount),
             entryType: LedgerEntryType.CASH_TRANSFER,
             referenceType: "CashTransfer",
             referenceId: transferNumber,
@@ -184,6 +183,8 @@ export async function createCashTransferAction(
       });
 
       return transferNumber;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     revalidatePath("/finance/accounts");
