@@ -73,6 +73,7 @@ export async function getProductRows(branchId?: string) {
       select: {
         id: true,
         name: true,
+        unit: true,
         minimumStockAlert: true,
         isActive: true,
       },
@@ -91,6 +92,7 @@ export async function getProductRows(branchId?: string) {
       ({
         id: product.id,
         name: product.name,
+        unit: product.unit,
         minimumStockAlert: product.minimumStockAlert,
         currentStock: stockByProduct.get(product.id) ?? 0,
         status: product.isActive ? "ACTIVE" : "INACTIVE",

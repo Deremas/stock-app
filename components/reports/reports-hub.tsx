@@ -58,6 +58,13 @@ const reportOptions = [
     href: "/reports/inventory-adjustments",
   },
   {
+    id: "bin-card",
+    name: "Item Bin Card",
+    description:
+      "Per-item movement ledger with dated quantity in, quantity out, and running balance.",
+    href: "/reports/bin-card",
+  },
+  {
     id: "low-stock",
     name: "Low Stock",
     description: "Items that need replenishment soon.",

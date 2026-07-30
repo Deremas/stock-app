@@ -14,6 +14,7 @@ import { useCreateDialog } from "@/components/tables/modal-table-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createBulkProductsAction,
@@ -26,6 +27,7 @@ import {
   type ProductEditorFormInput,
   type ProductEditorInput,
 } from "@/lib/validation/product";
+import { PRODUCT_UNITS } from "@/lib/product-units";
 import { Download, FileUp, ListPlus, UserPlus } from "lucide-react";
 
 type CreateMode = "SINGLE" | "BULK" | "EXCEL";
@@ -352,7 +354,13 @@ export function ProductForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="item-unit">Unit of Measure</Label>
-            <Input id="item-unit" placeholder="pcs, kg, meters..." {...form.register("unit")} />
+            <Select id="item-unit" {...form.register("unit")}>
+              {PRODUCT_UNITS.map((unit) => (
+                <option key={unit.value} value={unit.value}>
+                  {unit.label}
+                </option>
+              ))}
+            </Select>
             <p className="text-xs text-destructive">{form.formState.errors.unit?.message}</p>
           </div>
           <div className="space-y-2 sm:col-span-2">

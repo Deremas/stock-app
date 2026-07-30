@@ -9,6 +9,7 @@ import {
   normalizeOptionalString,
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
+import { normalizeProductUnit } from "@/lib/product-units";
 import { createAuditLog } from "@/lib/services/inventory-ledger";
 import {
   productDeleteSchema,
@@ -66,7 +67,7 @@ export async function createProductAction(
   }
 
   const name = parsed.data.name.trim();
-  const unit = parsed.data.unit.trim() || "pcs";
+  const unit = normalizeProductUnit(parsed.data.unit);
   const description = normalizeOptionalString(parsed.data.description);
 
   try {
@@ -195,7 +196,7 @@ export async function createBulkProductsAction(
         if (existing) continue;
 
         const sku = await generateUniqueItemSku(tx, name);
-        const unit = item.unit?.trim() || "pcs";
+        const unit = normalizeProductUnit(item.unit);
         const minimumStockAlert = item.minimumStockAlert ?? 0;
         const description = normalizeOptionalString(item.description);
 
@@ -281,7 +282,7 @@ export async function updateProductAction(
   }
 
   const name = parsed.data.name.trim();
-  const unit = parsed.data.unit.trim() || "pcs";
+  const unit = normalizeProductUnit(parsed.data.unit);
   const description = normalizeOptionalString(parsed.data.description);
 
   try {

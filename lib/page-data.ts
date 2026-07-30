@@ -135,6 +135,7 @@ export async function getTablePageConfig(
         exportFileName: "items",
         columns: [
           { key: "name", header: "Item" },
+          { key: "unit", header: "Unit" },
           { key: "currentStock", header: "Stock", type: "number" },
           {
             key: "minimumStockAlert",

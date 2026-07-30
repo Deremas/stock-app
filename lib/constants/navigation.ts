@@ -262,6 +262,7 @@ const hiddenPageTitles: NavigationItem[] = [
     href: "/reports/inventory-adjustments",
     icon: "reports",
   },
+  { title: "Item Bin Card", href: "/reports/bin-card", icon: "reports" },
   { title: "Sales Reports", href: "/reports/sales", icon: "reports" },
   { title: "Purchase Reports", href: "/reports/purchases", icon: "reports" },
   { title: "Seller Reports", href: "/reports/sellers", icon: "reports" },

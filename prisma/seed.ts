@@ -1,8 +1,10 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import argon2 from "argon2";
 
 import {
   AccountType,
+  AppRole,
   ExpenseStatus,
   LedgerDirection,
   LedgerEntryType,
@@ -32,6 +34,7 @@ const EXISTING_BRANCH_CODE = "METEBABE";
 const EXISTING_BRANCH_NAME = "Metebaber";
 const EXISTING_BRANCH_LOCATION = "Megenagna";
 const REQUIRED_USERNAMES = ["admin", "sales"] as const;
+const CLEAR_ONLY = process.argv.includes("--clear-only");
 
 type BranchRef = { id: string; code: string; name: string };
 type UserRef = { id: string; username: string; name: string };
@@ -257,6 +260,29 @@ function buildDate(base: Date, offsetDays: number, hour: number, minute = 0) {
 }
 
 async function clearDatabase() {
+  const legacyTables = [
+    "sales_exchange_items",
+    "sales_return_items",
+    "sales_returns",
+    "delivery_order_items",
+    "delivery_orders",
+    "cheques",
+    "price_adjustment_history",
+    "price_adjustment_batches",
+    "product_location_prices",
+    "exchange_rate_history",
+  ] as const;
+
+  for (const table of legacyTables) {
+    const result = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
+      `SELECT to_regclass('public."${table}"') IS NOT NULL AS "exists"`,
+    );
+
+    if (result[0]?.exists) {
+      await prisma.$executeRawUnsafe(`DELETE FROM "${table}"`);
+    }
+  }
+
   await prisma.sellerSettlementAllocation.deleteMany();
   await prisma.sellerCollectionAllocation.deleteMany();
   await prisma.saleItemAllocation.deleteMany();
@@ -297,6 +323,65 @@ async function clearDatabase() {
     data: { defaultBranchId: null },
   });
   await prisma.branch.deleteMany();
+}
+
+async function ensureRequiredUsers() {
+  const passwordHash = await argon2.hash("1234");
+  const requiredUsers = [
+    {
+      username: "admin",
+      name: "Sam Tech Admin",
+      role: AppRole.ADMIN,
+    },
+    {
+      username: "sales",
+      name: "Sam Tech Sales",
+      role: AppRole.SALES,
+    },
+  ] as const;
+
+  for (const required of requiredUsers) {
+    const user = await prisma.user.upsert({
+      where: { username: required.username },
+      create: {
+        username: required.username,
+        displayUsername: required.username,
+        name: required.name,
+        displayName: required.name,
+        role: required.role,
+        isActive: true,
+      },
+      update: {
+        displayUsername: required.username,
+        name: required.name,
+        displayName: required.name,
+        role: required.role,
+        isActive: true,
+        defaultBranchId: null,
+      },
+      select: { id: true },
+    });
+    const credential = await prisma.account.findFirst({
+      where: { userId: user.id, providerId: "credential" },
+      select: { id: true },
+    });
+
+    if (credential) {
+      await prisma.account.update({
+        where: { id: credential.id },
+        data: { accountId: user.id, password: passwordHash },
+      });
+    } else {
+      await prisma.account.create({
+        data: {
+          accountId: user.id,
+          providerId: "credential",
+          userId: user.id,
+          password: passwordHash,
+        },
+      });
+    }
+  }
 }
 
 async function loadExistingCoreRecords() {
@@ -1734,6 +1819,13 @@ async function createAuditEntry(args: {
 
 async function main() {
   await clearDatabase();
+
+  if (CLEAR_ONLY) {
+    console.log("Business data cleared; users and credentials were preserved.");
+    return;
+  }
+
+  await ensureRequiredUsers();
   branchesByCode.clear();
   usersByUsername.clear();
   accountsByCode.clear();

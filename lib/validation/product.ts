@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { PRODUCT_UNIT_VALUES } from "@/lib/product-units";
+
 export const productSchema = z.object({
   name: z
     .string()
@@ -10,11 +12,9 @@ export const productSchema = z.object({
     .number()
     .int("Low stock alert must be a whole number.")
     .min(0, "Low stock alert must be zero or more."),
-  unit: z
-    .string()
-    .trim()
-    .min(1, "Unit is required.")
-    .max(20, "Unit must be 20 characters or fewer."),
+  unit: z.enum(PRODUCT_UNIT_VALUES, {
+    message: "Select a supported unit.",
+  }),
   description: z
     .string()
     .trim()

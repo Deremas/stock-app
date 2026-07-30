@@ -9,6 +9,7 @@ import { getTablePageConfig } from "@/lib/page-data";
 import { prisma } from "@/lib/prisma";
 import { getSingleSearchParam, type RouteSearchParams } from "@/lib/query-params";
 import { hasPermission } from "@/lib/rbac";
+import { normalizeProductUnit } from "@/lib/product-units";
 
 type ProductsPageProps = {
   searchParams?: Promise<RouteSearchParams>;
@@ -111,7 +112,7 @@ export default async function Page({ searchParams }: ProductsPageProps) {
                   id: product.id,
                   name: product.name,
                   minimumStockAlert: product.minimumStockAlert,
-                  unit: product.unit,
+                  unit: normalizeProductUnit(product.unit),
                   description: product.description ?? "",
                 },
               }
