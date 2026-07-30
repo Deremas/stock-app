@@ -3,6 +3,7 @@ import { Package } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { sanitizeReturnToPath } from "@/lib/auth/return-to";
+import { APP_NAME, APP_TAGLINE } from "@/lib/branding";
 import { getSingleSearchParam, type RouteSearchParams } from "@/lib/query-params";
 
 type LoginPageProps = {
@@ -25,9 +26,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </div>
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white/85">
-                    StockMaster Pro
+                    {APP_NAME}
                   </p>
-                  <p className="text-sm text-white/78">Retail management workspace</p>
+                  <p className="text-sm text-white/78">{APP_TAGLINE}</p>
                 </div>
               </div>
               <div className="space-y-3">
@@ -35,7 +36,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                   Manage stock, sales, purchases, and cash flow in one place.
                 </h1>
                 <p className="max-w-md text-sm leading-6 text-white/88">
-                  A focused workspace for daily retail operations, branch control, and reporting.
+                  A focused workspace for chargers, cables, screen protectors,
+                  covers, laptop accessories, and everyday shop reporting.
                 </p>
               </div>
             </div>
@@ -58,8 +60,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                     <Package className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">StockMaster Pro</p>
-                    <p className="text-xs text-slate-600">Retail management workspace</p>
+                    <p className="text-sm font-semibold text-slate-900">{APP_NAME}</p>
+                    <p className="text-xs text-slate-600">{APP_TAGLINE}</p>
                   </div>
                 </div>
                 <div className="space-y-2">

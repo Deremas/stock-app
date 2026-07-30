@@ -64,6 +64,9 @@ function createEditItemHref(productId: string) {
 export async function getProductRows(branchId?: string) {
   const [products, stockSummary] = await Promise.all([
     prisma.product.findMany({
+      where: {
+        isActive: true,
+      },
       orderBy: {
         name: "asc",
       },

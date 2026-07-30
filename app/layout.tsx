@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 
 import { Providers } from "@/components/app-shell/providers";
+import { APP_NAME } from "@/lib/branding";
 
 import "@/app/globals.css";
 
 export const metadata: Metadata = {
-  title: "Stock Management App",
-  description: "Multi-branch stock management app for electronics accessories",
+  title: APP_NAME,
+  description:
+    "Stock, sales, purchasing, and finance management for phone and laptop accessories.",
 };
 
 export default function RootLayout({

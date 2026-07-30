@@ -154,6 +154,9 @@ export async function getStockSummaryRows(branchId?: string) {
     const [movements, ownedBatches] = await Promise.all([
       prisma.stockMovement.findMany({
         where: {
+          product: {
+            isActive: true,
+          },
           ...(branchId ? { branchId } : {}),
         },
         include: {

@@ -21,6 +21,9 @@ export async function getOwnedStockBatches(
   const [purchaseBatches, transferBatches] = await Promise.all([
     prisma.purchaseItem.findMany({
       where: {
+        product: {
+          isActive: true,
+        },
         ...(input.productId ? { productId: input.productId } : {}),
         ...(input.batchIds?.length
           ? {
@@ -81,6 +84,9 @@ export async function getOwnedStockBatches(
     }),
     prisma.transferItem.findMany({
       where: {
+        product: {
+          isActive: true,
+        },
         ...(input.productId ? { productId: input.productId } : {}),
         ...(input.batchIds?.length
           ? {

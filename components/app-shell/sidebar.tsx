@@ -12,6 +12,7 @@ import {
 } from "@/lib/constants/navigation";
 import { getIcon } from "@/lib/icons";
 import type { AppRole } from "@/lib/rbac";
+import { APP_NAME } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 
 function getSectionAccent(title: string) {
@@ -78,8 +79,8 @@ export function AppSidebar({
               <Package className="h-5 w-5" />
             </div>
             <div className="min-w-0 space-y-0.5">
-              <p className="truncate text-sm font-bold tracking-tight">StockMaster Pro</p>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sidebar-foreground/45">Management</p>
+              <p className="truncate text-sm font-bold tracking-tight">{APP_NAME}</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-sidebar-foreground/45">Accessories</p>
             </div>
           </div>
           <button
