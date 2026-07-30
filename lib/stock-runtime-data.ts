@@ -195,6 +195,10 @@ export async function getStockSummaryRows(branchId?: string) {
         lastMovementDate: Date;
       }
     >();
+    const ownedBatchTotals = new Map<
+      string,
+      { quantity: number; value: number; batch: (typeof ownedBatches)[number] }
+    >();
 
     for (const movement of movements) {
       const key = `${movement.branchId}:${movement.productId}`;
@@ -217,6 +221,11 @@ export async function getStockSummaryRows(branchId?: string) {
         existing.sellerQty += movement.quantity;
       } else if (movement.ownershipType === "SELLER_ASSIGNED") {
         existing.assignedQty += movement.quantity;
+      } else {
+        // The movement ledger remains the quantity source of truth. This keeps
+        // legacy opening/adjustment history intact even when those rows predate
+        // purchase-batch allocation tracking.
+        existing.ownedQty += movement.quantity;
       }
 
       if (movement.movementDate > existing.lastMovementDate) {
@@ -226,6 +235,9 @@ export async function getStockSummaryRows(branchId?: string) {
       if (movement.ownershipType === "SELLER_CONSIGNMENT") {
         existing.totalQty += movement.quantity;
         existing.stockValue += movement.quantity * toNumber(movement.unitCost);
+      } else if (movement.ownershipType === "OWNED") {
+        existing.totalQty += movement.quantity;
+        existing.stockValue += movement.quantity * toNumber(movement.unitCost);
       }
       summary.set(key, existing);
     }
@@ -233,30 +245,65 @@ export async function getStockSummaryRows(branchId?: string) {
     for (const batch of ownedBatches) {
       const key = `${batch.branchId}:${batch.productId}`;
       const receivedAt = new Date(batch.receivedAt);
-      const existing = summary.get(key) ?? {
+      const existing = summary.get(key);
+      const batchTotal = ownedBatchTotals.get(key) ?? {
+        quantity: 0,
+        value: 0,
+        batch,
+      };
+
+      batchTotal.quantity += batch.remainingQuantity;
+      batchTotal.value += batch.remainingQuantity * batch.unitCost;
+      ownedBatchTotals.set(key, batchTotal);
+
+      if (!existing) {
+        summary.set(key, {
         id: key,
         branchId: batch.branchId,
         branch: batch.branchName,
         productId: batch.productId,
         product: batch.productName,
-        ownedQty: 0,
+        ownedQty: batch.remainingQuantity,
         sellerQty: 0,
         assignedQty: 0,
-        totalQty: 0,
-        stockValue: 0,
+        totalQty: batch.remainingQuantity,
+        stockValue: batch.remainingQuantity * batch.unitCost,
         minimumStockAlert: 0,
         lastMovementDate: receivedAt,
-      };
-
-      existing.ownedQty += batch.remainingQuantity;
-      existing.totalQty += batch.remainingQuantity;
-      existing.stockValue += batch.remainingQuantity * batch.unitCost;
+        });
+        continue;
+      }
 
       if (receivedAt > existing.lastMovementDate) {
         existing.lastMovementDate = receivedAt;
       }
+    }
 
-      summary.set(key, existing);
+    for (const [key, batchTotal] of ownedBatchTotals) {
+      const existing = summary.get(key);
+
+      if (!existing || existing.ownedQty <= 0) {
+        continue;
+      }
+
+      const ledgerOwnedValue = Math.max(existing.stockValue, 0);
+      const ledgerAverageCost = ledgerOwnedValue / existing.ownedQty;
+      const batchCoveredQuantity = Math.min(
+        Math.max(existing.ownedQty, 0),
+        batchTotal.quantity,
+      );
+      const uncoveredQuantity = Math.max(
+        existing.ownedQty - batchCoveredQuantity,
+        0,
+      );
+      const batchAverageCost =
+        batchTotal.quantity > 0 ? batchTotal.value / batchTotal.quantity : 0;
+
+      // Current batch prices apply only to stock covered by tracked batches.
+      // Legacy uncovered stock keeps its ledger cost instead of being rewritten.
+      existing.stockValue =
+        batchCoveredQuantity * batchAverageCost +
+        uncoveredQuantity * ledgerAverageCost;
     }
 
     return [...summary.values()].sort((left, right) => {

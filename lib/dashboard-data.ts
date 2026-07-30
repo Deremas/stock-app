@@ -101,6 +101,7 @@ export async function getDashboardSnapshot(
         },
       },
       select: {
+        id: true,
         lineTotal: true,
         allocations: {
           select: {
@@ -260,6 +261,43 @@ export async function getDashboardSnapshot(
     }),
   ]);
 
+  const unallocatedSaleItemIds = todaySaleItems
+    .filter((item) => item.allocations.length === 0)
+    .map((item) => item.id);
+  const legacySaleCosts = new Map<string, number>();
+
+  if (unallocatedSaleItemIds.length > 0) {
+    try {
+      const legacyMovements = await prisma.stockMovement.findMany({
+        where: {
+          movementType: "SALE",
+          sourceLineId: {
+            in: unallocatedSaleItemIds,
+          },
+        },
+        select: {
+          sourceLineId: true,
+          quantity: true,
+          unitCost: true,
+        },
+      });
+
+      for (const movement of legacyMovements) {
+        if (!movement.sourceLineId) {
+          continue;
+        }
+
+        legacySaleCosts.set(
+          movement.sourceLineId,
+          (legacySaleCosts.get(movement.sourceLineId) ?? 0) +
+            Math.abs(movement.quantity) * toNumber(movement.unitCost),
+        );
+      }
+    } catch (error) {
+      console.error("Unable to load legacy sale costs.", error);
+    }
+  }
+
   const todaySalesTotal = sumRows(todaySales.map((sale) => toNumber(sale.total)));
   const todayCashSales = sumRows(
     todaySales
@@ -270,6 +308,16 @@ export async function getDashboardSnapshot(
     todaySaleItems
       .reduce((sum, saleItem) => {
         const saleTotal = toNumber(saleItem.lineTotal);
+        if (saleItem.allocations.length === 0) {
+          const legacyCost = legacySaleCosts.get(saleItem.id);
+
+          // Do not report an unallocated historical line as pure profit. When
+          // its recorded movement cost is unavailable, leave it out.
+          return legacyCost === undefined
+            ? sum
+            : sum + (saleTotal - legacyCost);
+        }
+
         const costTotal = saleItem.allocations.reduce((costSum, allocation) => {
           const isPartnerOwned =
             allocation.sourceType === "SELLER_CONSIGNMENT" ||
