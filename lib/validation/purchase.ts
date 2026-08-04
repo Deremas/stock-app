@@ -14,10 +14,10 @@ export const purchaseSchema = z.object({
   settlementMode: z.enum(["UNPAID", "FULL", "PARTIAL"]),
   amountPaid: z.coerce.number().nonnegative("Paid amount must be zero or more"),
   purchasedAt: z.string().min(1, "Choose purchase date"),
+  applyVat: z.boolean().optional().default(false),
   note: z.string().max(500).optional(),
   items: z.array(purchaseItemSchema).min(1, "Add at least one line item"),
 }).superRefine((value, ctx) => {
-  const subtotal = value.items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
   const seenProductIds = new Set<string>();
 
   value.items.forEach((item, index) => {
@@ -71,13 +71,6 @@ export const purchaseSchema = z.object({
       });
     }
 
-    if (subtotal > 0 && value.amountPaid >= subtotal) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Partial payment must be less than the purchase total.",
-        path: ["amountPaid"],
-      });
-    }
   }
 });
 

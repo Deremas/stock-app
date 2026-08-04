@@ -16,11 +16,24 @@ export type ProductOption = {
   name: string;
 };
 
+export type TaxFormSettings = {
+  vatEnabled: boolean;
+  salesVatEnabled: boolean;
+  purchaseVatEnabled: boolean;
+  defaultSalesVatRate: number;
+  defaultPurchaseVatRate: number;
+  salesPriceMode: "EXCLUSIVE" | "INCLUSIVE";
+  purchasePriceMode: "EXCLUSIVE" | "INCLUSIVE";
+  purchaseVatTreatment: "RECOVERABLE" | "NON_RECOVERABLE";
+  businessTaxId: string;
+};
+
 export type PurchaseFormOptions = {
   branches: BranchOption[];
   suppliers: NamedOption[];
   products: ProductOption[];
   accounts: FinanceAccountOption[];
+  taxSettings: TaxFormSettings;
 };
 
 export type OwnedStockBatchOption = {
@@ -50,6 +63,7 @@ export type SaleFormOptions = {
   branchStock: SaleBranchStockOption[];
   ownedBatches: OwnedStockBatchOption[];
   accounts: FinanceAccountOption[];
+  taxSettings: TaxFormSettings;
 };
 
 export type TransferFormOptions = {

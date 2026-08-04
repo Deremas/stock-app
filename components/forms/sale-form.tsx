@@ -24,10 +24,12 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { createSaleAction } from "@/lib/actions/sales";
 import { formatFinanceAccountLabel } from "@/lib/finance-account-utils";
 import type { SaleFormOptions } from "@/lib/types";
+import { calculateTax } from "@/lib/tax";
 import { formatCurrency, formatDateForInput } from "@/lib/utils";
 import { saleSchema, type SaleFormInput } from "@/lib/validation/sale";
 
@@ -98,6 +100,10 @@ function getAvailableAccountsForSale(
     return [];
   }
 
+  if (paymentMethod === "MIXED") {
+    return [];
+  }
+
   return options.accounts.filter(
     (account) =>
       (!branchId || !account.branchId || account.branchId === branchId) &&
@@ -149,7 +155,13 @@ function getDefaultValues(
     customerId: "",
     paymentMethod: defaultPaymentMethod,
     financeAccountId: "",
+    mixedCashAmount: 0,
+    mixedCashAccountId: defaultCashAccounts[0]?.id ?? "",
+    mixedBankAmount: 0,
+    mixedBankAccountId: defaultBankAccounts[0]?.id ?? "",
+    mixedCreditAmount: 0,
     soldAt: formatDateForInput(),
+    applyVat: false,
     note: "",
     items: [
       {
@@ -207,6 +219,12 @@ export function SaleForm({
   const customerId = form.watch("customerId");
   const paymentMethod = form.watch("paymentMethod");
   const financeAccountId = form.watch("financeAccountId");
+  const mixedCashAmount = Number(form.watch("mixedCashAmount") || 0);
+  const mixedCashAccountId = form.watch("mixedCashAccountId");
+  const mixedBankAmount = Number(form.watch("mixedBankAmount") || 0);
+  const mixedBankAccountId = form.watch("mixedBankAccountId");
+  const mixedCreditAmount = Number(form.watch("mixedCreditAmount") || 0);
+  const applyVat = form.watch("applyVat");
   const items = form.watch("items");
   const currentBranchProducts = getAvailableProductsForBranch(options, branchId);
   const availablePaymentAccounts = getAvailableAccountsForSale(
@@ -214,9 +232,24 @@ export function SaleForm({
     branchId,
     paymentMethod,
   );
+  const availableCashAccounts = options.accounts.filter(
+    (account) =>
+      account.type === "CASH" &&
+      (!branchId || !account.branchId || account.branchId === branchId),
+  );
+  const availableBankAccounts = options.accounts.filter(
+    (account) =>
+      account.type === "BANK" &&
+      (!branchId || !account.branchId || account.branchId === branchId),
+  );
+  const mixedAllocatedTotal =
+    mixedCashAmount + mixedBankAmount + mixedCreditAmount;
+  const mixedActiveMethods = [
+    mixedCashAmount > 0,
+    mixedBankAmount > 0,
+    mixedCreditAmount > 0,
+  ].filter(Boolean).length;
   const canSubmit = options.branches.length > 0 && currentBranchProducts.length > 0;
-  const canPostWithPaymentAccount =
-    paymentMethod === "CREDIT" || availablePaymentAccounts.length > 0;
   const previousBranchId = useRef(defaultValues.branchId);
   const previousLineState = useRef(
     defaultValues.items.map((item) => ({
@@ -230,7 +263,25 @@ export function SaleForm({
   const discountTotal = items.reduce((sum, item) => {
     return sum + (Number(item.quantity || 0) * Number(item.discount || 0)) + Number(item.fixedDiscount || 0);
   }, 0);
-  const total = grossTotal - discountTotal;
+  const netBeforeTax = grossTotal - discountTotal;
+  const salesVatAvailable =
+    options.taxSettings.vatEnabled && options.taxSettings.salesVatEnabled;
+  const tax = calculateTax({
+    amount: netBeforeTax,
+    enabled: salesVatAvailable && Boolean(applyVat),
+    rate: options.taxSettings.defaultSalesVatRate,
+    priceMode: options.taxSettings.salesPriceMode,
+  });
+  const total = tax.total;
+  const canPostWithPaymentAccount =
+    paymentMethod === "CREDIT" ||
+    (paymentMethod === "MIXED"
+      ? mixedActiveMethods >= 2 &&
+        Math.abs(mixedAllocatedTotal - total) < 0.005 &&
+        (mixedCashAmount <= 0 || Boolean(mixedCashAccountId)) &&
+        (mixedBankAmount <= 0 || Boolean(mixedBankAccountId)) &&
+        (mixedCreditAmount <= 0 || Boolean(customerId))
+      : availablePaymentAccounts.length > 0);
 
   useEffect(() => {
     const branchChanged = branchId !== previousBranchId.current;
@@ -427,11 +478,12 @@ export function SaleForm({
                     <Select id="paymentMethod" {...form.register("paymentMethod")}>
                       <option value="CASH">Cash</option>
                       <option value="BANK">Bank</option>
+                      <option value="MIXED">Split payment</option>
                       <option value="CREDIT">Credit</option>
                     </Select>
                   </div>
                   <div className="col-span-6 sm:col-span-4 md:col-span-4 lg:col-span-2 xl:col-span-2 space-y-1.5 flex flex-col justify-end">
-                    {paymentMethod !== "CREDIT" ? (
+                    {paymentMethod !== "CREDIT" && paymentMethod !== "MIXED" ? (
                       <div className="flex flex-col justify-end w-full">
                         <Label htmlFor="financeAccountId" className="mb-1.5">
                           {paymentMethod === "BANK" ? "Bank account" : "Cash account"}
@@ -460,10 +512,77 @@ export function SaleForm({
                     <Input id="soldAt" type="datetime-local" {...form.register("soldAt")} />
                   </div>
                 </div>
-                {paymentMethod !== "CREDIT" && availablePaymentAccounts.length === 0 ? (
+                {paymentMethod !== "CREDIT" &&
+                paymentMethod !== "MIXED" &&
+                availablePaymentAccounts.length === 0 ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                     No active {paymentMethod === "BANK" ? "bank" : "cash"} account is available for
                     this branch yet.
+                  </div>
+                ) : null}
+                {paymentMethod === "MIXED" ? (
+                  <div className="grid gap-4 rounded-2xl border border-border bg-muted/20 p-4 md:grid-cols-3">
+                    <div className="space-y-3">
+                      <Label>Cash portion</Label>
+                      <Controller
+                        control={form.control}
+                        name="mixedCashAmount"
+                        render={({ field }) => (
+                          <CurrencyInput
+                            value={Number(field.value ?? 0)}
+                            onValueChange={(value) => field.onChange(value.floatValue ?? 0)}
+                            placeholder="0.00"
+                          />
+                        )}
+                      />
+                      <Select {...form.register("mixedCashAccountId")} disabled={mixedCashAmount <= 0}>
+                        <option value="">Select cash account</option>
+                        {availableCashAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>{formatFinanceAccountLabel(account)}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <Label>Bank portion</Label>
+                      <Controller
+                        control={form.control}
+                        name="mixedBankAmount"
+                        render={({ field }) => (
+                          <CurrencyInput
+                            value={Number(field.value ?? 0)}
+                            onValueChange={(value) => field.onChange(value.floatValue ?? 0)}
+                            placeholder="0.00"
+                          />
+                        )}
+                      />
+                      <Select {...form.register("mixedBankAccountId")} disabled={mixedBankAmount <= 0}>
+                        <option value="">Select bank account</option>
+                        {availableBankAccounts.map((account) => (
+                          <option key={account.id} value={account.id}>{formatFinanceAccountLabel(account)}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <Label>Credit portion</Label>
+                      <Controller
+                        control={form.control}
+                        name="mixedCreditAmount"
+                        render={({ field }) => (
+                          <CurrencyInput
+                            value={Number(field.value ?? 0)}
+                            onValueChange={(value) => field.onChange(value.floatValue ?? 0)}
+                            placeholder="0.00"
+                          />
+                        )}
+                      />
+                      <p className="text-xs text-muted-foreground">Credit requires a selected customer.</p>
+                    </div>
+                    <div className="md:col-span-3 flex items-center justify-between rounded-xl bg-background px-4 py-3 text-sm">
+                      <span className="text-muted-foreground">Allocated / difference</span>
+                      <span className="font-semibold">
+                        {formatCurrency(mixedAllocatedTotal)} / {formatCurrency(total - mixedAllocatedTotal)}
+                      </span>
+                    </div>
                   </div>
                 ) : null}
                 <div className="space-y-4">
@@ -725,6 +844,23 @@ export function SaleForm({
               <CardTitle>Receipt summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {salesVatAvailable ? (
+                <Controller
+                  control={form.control}
+                  name="applyVat"
+                  render={({ field }) => (
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-border p-4">
+                      <div>
+                        <p className="text-sm font-semibold">Apply VAT</p>
+                        <p className="text-xs text-muted-foreground">
+                          {options.taxSettings.defaultSalesVatRate}% · {options.taxSettings.salesPriceMode.toLowerCase()} prices
+                        </p>
+                      </div>
+                      <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                    </div>
+                  )}
+                />
+              ) : null}
               <div className="rounded-2xl bg-muted/60 p-4">
                 <p className="text-sm text-muted-foreground">Gross total</p>
                 <p className="mt-2 text-xl font-semibold">{formatCurrency(grossTotal)}</p>
@@ -733,6 +869,14 @@ export function SaleForm({
                 <p className="text-sm text-muted-foreground">Discount total</p>
                 <p className="mt-2 text-xl font-semibold">{formatCurrency(discountTotal)}</p>
               </div>
+              {tax.taxTreatment === "STANDARD" ? (
+                <div className="rounded-2xl bg-muted/60 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    VAT ({tax.taxRate}%) {tax.pricesIncludeTax ? "included" : "added"}
+                  </p>
+                  <p className="mt-2 text-xl font-semibold">{formatCurrency(tax.taxAmount)}</p>
+                </div>
+              ) : null}
               <div className="rounded-2xl bg-muted/60 p-4">
                 <p className="text-sm text-muted-foreground">Calculated total</p>
                 <p className="mt-2 text-3xl font-semibold">{formatCurrency(total)}</p>

@@ -42,6 +42,12 @@ enum SalePaymentMethod {
   CHEQUE
 }
 
+enum SalePaymentAllocationMethod {
+  CASH
+  BANK
+  CREDIT
+}
+
 enum AccountType {
   CASH
   BANK
@@ -110,39 +116,57 @@ enum InventoryAdjustmentType {
   QUANTITY
 }
 
+enum TaxTreatment {
+  NONE
+  STANDARD
+  ZERO_RATED
+  EXEMPT
+  OUT_OF_SCOPE
+}
+
+enum TaxPriceMode {
+  EXCLUSIVE
+  INCLUSIVE
+}
+
+enum PurchaseVatTreatment {
+  RECOVERABLE
+  NON_RECOVERABLE
+}
+
 model User {
-  id                       String               @id @default(cuid())
+  id                       String                @id @default(cuid())
   name                     String
-  email                    String?              @unique
+  email                    String?               @unique
   phone                    String?
-  emailVerified            Boolean              @default(false)
+  emailVerified            Boolean               @default(false)
   image                    String?
-  username                 String               @unique
+  username                 String                @unique
   displayUsername          String?
   displayName              String?
-  role                     AppRole              @default(SALES)
-  isActive                 Boolean              @default(true)
+  role                     AppRole               @default(SALES)
+  isActive                 Boolean               @default(true)
   defaultBranchId          String?
-  defaultBranch            Branch?              @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
+  defaultBranch            Branch?               @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
   branchAssignments        UserBranch[]
   sessions                 Session[]
   accounts                 Account[]
-  auditLogs                AuditLog[]           @relation("AuditActor")
+  auditLogs                AuditLog[]            @relation("AuditActor")
   inventoryAdjustments     InventoryAdjustment[] @relation("InventoryAdjustmentActor")
-  createdPurchases         Purchase[]           @relation("PurchaseCreatedBy")
-  createdSales             Sale[]               @relation("SaleCreatedBy")
-  createdIntakes           SellerIntake[]       @relation("SellerIntakeRecordedBy")
-  createdAssignments       SellerAssignment[]   @relation("SellerAssignmentRecordedBy")
-  createdReturns           SellerReturn[]       @relation("SellerReturnRecordedBy")
-  createdSettlements       SellerSettlement[]   @relation("SellerSettlementRecordedBy")
-  createdCollections       SellerCollection[]   @relation("SellerCollectionRecordedBy")
-  createdExpenses          Expense[]            @relation("ExpenseRecordedBy")
-  recordedCustomerPayments CustomerPayment[]    @relation("CustomerPaymentRecordedBy")
-  recordedSupplierPayments SupplierPayment[]    @relation("SupplierPaymentRecordedBy")
-  transfersSent            Transfer[]           @relation("TransferSentBy")
-  transfersReceived        Transfer[]           @relation("TransferReceivedBy")
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
+  createdPurchases         Purchase[]            @relation("PurchaseCreatedBy")
+  createdSales             Sale[]                @relation("SaleCreatedBy")
+  createdIntakes           SellerIntake[]        @relation("SellerIntakeRecordedBy")
+  createdAssignments       SellerAssignment[]    @relation("SellerAssignmentRecordedBy")
+  createdReturns           SellerReturn[]        @relation("SellerReturnRecordedBy")
+  createdSettlements       SellerSettlement[]    @relation("SellerSettlementRecordedBy")
+  createdCollections       SellerCollection[]    @relation("SellerCollectionRecordedBy")
+  createdExpenses          Expense[]             @relation("ExpenseRecordedBy")
+  recordedCustomerPayments CustomerPayment[]     @relation("CustomerPaymentRecordedBy")
+  recordedSupplierPayments SupplierPayment[]     @relation("SupplierPaymentRecordedBy")
+  transfersSent            Transfer[]            @relation("TransferSentBy")
+  transfersReceived        Transfer[]            @relation("TransferReceivedBy")
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
 
   @@index([role, isActive])
   @@map("users")
@@ -166,20 +190,20 @@ model Session {
 }
 
 model Account {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   accountId             String
   providerId            String
   userId                String
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?  @db.Text
-  refreshToken          String?  @db.Text
-  idToken               String?  @db.Text
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
   accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
   scope                 String?
-  password              String?  @db.Text
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@index([userId])
   @@map("auth_accounts")
@@ -212,37 +236,37 @@ model UserBranch {
 }
 
 model Branch {
-  id                String                 @id @default(cuid())
-  code              String                 @unique
-  name              String                 @unique
-  location          String?
-  phone             String?
-  email             String?
-  isActive          Boolean                @default(true)
-  defaultUsers      User[]                 @relation("UserDefaultBranch")
-  userAssignments   UserBranch[]
-  sessions          Session[]
-  purchases         Purchase[]
-  sales             Sale[]
-  sellerIntakes     SellerIntake[]
-  sellerAssignments SellerAssignment[]
-  sellerReturns     SellerReturn[]
-  sellerSettlements SellerSettlement[]
-  sellerCollections SellerCollection[]
-  financeAccounts   FinanceAccount[]
-  expenses          Expense[]
-  customerPayments  CustomerPayment[]
-  supplierPayments  SupplierPayment[]
-  stockMovements    StockMovement[]
-  stockSnapshots    StockBalanceSnapshot[]
-  alertRecords      AlertRecord[]
-  transfersFrom     Transfer[]             @relation("TransferSourceBranch")
-  transfersTo       Transfer[]             @relation("TransferDestinationBranch")
-  ledgerEntries     LedgerEntry[]
-  auditLogs         AuditLog[]
+  id                   String                 @id @default(cuid())
+  code                 String                 @unique
+  name                 String                 @unique
+  location             String?
+  phone                String?
+  email                String?
+  isActive             Boolean                @default(true)
+  defaultUsers         User[]                 @relation("UserDefaultBranch")
+  userAssignments      UserBranch[]
+  sessions             Session[]
+  purchases            Purchase[]
+  sales                Sale[]
+  sellerIntakes        SellerIntake[]
+  sellerAssignments    SellerAssignment[]
+  sellerReturns        SellerReturn[]
+  sellerSettlements    SellerSettlement[]
+  sellerCollections    SellerCollection[]
+  financeAccounts      FinanceAccount[]
+  expenses             Expense[]
+  customerPayments     CustomerPayment[]
+  supplierPayments     SupplierPayment[]
+  stockMovements       StockMovement[]
+  stockSnapshots       StockBalanceSnapshot[]
+  alertRecords         AlertRecord[]
+  transfersFrom        Transfer[]             @relation("TransferSourceBranch")
+  transfersTo          Transfer[]             @relation("TransferDestinationBranch")
+  ledgerEntries        LedgerEntry[]
+  auditLogs            AuditLog[]
   inventoryAdjustments InventoryAdjustment[]
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@map("branches")
 }
@@ -272,38 +296,38 @@ model Brand {
 }
 
 model Product {
-  id                  String                 @id @default(cuid())
-  name                String
-  sku                 String                 @unique
-  barcode             String?                @unique
-  categoryId          String?
-  brandId             String?
-  model               String?
-  variant             String?
-  description         String?
-  imageUrl            String?
-  minimumStockAlert   Int                    @default(0)
-  unit                String                 @default("pcs")
-  isActive            Boolean                @default(true)
-  compatibilityNote   String?
-  connectorType       String?
-  color               String?
-  warrantyDays        Int?
-  serialTracking      Boolean                @default(false)
-  category            Category?              @relation(fields: [categoryId], references: [id])
-  brand               Brand?                 @relation(fields: [brandId], references: [id])
-  purchaseItems       PurchaseItem[]
-  saleItems           SaleItem[]
-  intakeItems         SellerIntakeItem[]
-  assignmentItems     SellerAssignmentItem[]
-  returnItems         SellerReturnItem[]
-  transferItems       TransferItem[]
-  stockMovements      StockMovement[]
-  stockSnapshots      StockBalanceSnapshot[]
-  alertRecords        AlertRecord[]
+  id                   String                 @id @default(cuid())
+  name                 String
+  sku                  String                 @unique
+  barcode              String?                @unique
+  categoryId           String?
+  brandId              String?
+  model                String?
+  variant              String?
+  description          String?
+  imageUrl             String?
+  minimumStockAlert    Int                    @default(0)
+  unit                 String                 @default("pcs")
+  isActive             Boolean                @default(true)
+  compatibilityNote    String?
+  connectorType        String?
+  color                String?
+  warrantyDays         Int?
+  serialTracking       Boolean                @default(false)
+  category             Category?              @relation(fields: [categoryId], references: [id])
+  brand                Brand?                 @relation(fields: [brandId], references: [id])
+  purchaseItems        PurchaseItem[]
+  saleItems            SaleItem[]
+  intakeItems          SellerIntakeItem[]
+  assignmentItems      SellerAssignmentItem[]
+  returnItems          SellerReturnItem[]
+  transferItems        TransferItem[]
+  stockMovements       StockMovement[]
+  stockSnapshots       StockBalanceSnapshot[]
+  alertRecords         AlertRecord[]
   inventoryAdjustments InventoryAdjustment[]
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([name])
   @@index([categoryId])
@@ -346,51 +370,56 @@ model Customer {
 }
 
 model Seller {
-  id             String               @id @default(cuid())
+  id             String             @id @default(cuid())
   fullName       String
-  phone          String?              @unique
+  phone          String?            @unique
   alternatePhone String?
   address        String?
   note           String?
-  isActive       Boolean              @default(true)
+  isActive       Boolean            @default(true)
   intakes        SellerIntake[]
   assignments    SellerAssignment[]
   returns        SellerReturn[]
   settlements    SellerSettlement[]
   collections    SellerCollection[]
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([fullName])
   @@map("sellers")
 }
 
 model Purchase {
-  id               String          @id @default(cuid())
-  purchaseNumber   String          @unique
+  id               String               @id @default(cuid())
+  purchaseNumber   String               @unique
   invoiceNumber    String?
   branchId         String
   supplierId       String?
   createdById      String
   paymentAccountId String?
-  status           PurchaseStatus  @default(POSTED)
-  paymentStatus    PaymentStatus   @default(UNPAID)
-  subtotal         Decimal         @db.Decimal(18, 2)
-  discount         Decimal         @default(0) @db.Decimal(18, 2)
-  tax              Decimal         @default(0) @db.Decimal(18, 2)
-  total            Decimal         @db.Decimal(18, 2)
-  amountPaid       Decimal         @default(0) @db.Decimal(18, 2)
-  amountDue        Decimal         @db.Decimal(18, 2)
+  status           PurchaseStatus       @default(POSTED)
+  paymentStatus    PaymentStatus        @default(UNPAID)
+  subtotal         Decimal              @db.Decimal(18, 2)
+  discount         Decimal              @default(0) @db.Decimal(18, 2)
+  tax              Decimal              @default(0) @db.Decimal(18, 2)
+  taxTreatment     TaxTreatment         @default(NONE)
+  taxRate          Decimal              @default(0) @db.Decimal(5, 2)
+  taxableAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  pricesIncludeTax Boolean              @default(false)
+  vatTreatment     PurchaseVatTreatment @default(RECOVERABLE)
+  total            Decimal              @db.Decimal(18, 2)
+  amountPaid       Decimal              @default(0) @db.Decimal(18, 2)
+  amountDue        Decimal              @db.Decimal(18, 2)
   purchasedAt      DateTime
   note             String?
-  branch           Branch          @relation(fields: [branchId], references: [id])
-  supplier         Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  createdBy        User            @relation("PurchaseCreatedBy", fields: [createdById], references: [id])
-  paymentAccount   FinanceAccount? @relation("PurchasePaymentAccount", fields: [paymentAccountId], references: [id])
+  branch           Branch               @relation(fields: [branchId], references: [id])
+  supplier         Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy        User                 @relation("PurchaseCreatedBy", fields: [createdById], references: [id])
+  paymentAccount   FinanceAccount?      @relation("PurchasePaymentAccount", fields: [paymentAccountId], references: [id])
   items            PurchaseItem[]
   supplierPayments SupplierPayment[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 
   @@index([branchId, purchasedAt])
   @@index([supplierId, purchasedAt])
@@ -398,49 +427,60 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id              String              @id @default(cuid())
-  purchaseId      String
-  productId       String
-  quantity        Int
-  quantityAdjustment Int                 @default(0)
-  quantityTransferred Int             @default(0)
-  unitCost        Decimal             @db.Decimal(18, 2)
-  sellingPrice    Decimal             @db.Decimal(18, 2)
-  lineTotal       Decimal             @db.Decimal(18, 2)
-  purchase        Purchase            @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  product         Product             @relation(fields: [productId], references: [id])
-  saleAllocations SaleItemAllocation[]
+  id                    String                 @id @default(cuid())
+  purchaseId            String
+  productId             String
+  quantity              Int
+  quantityAdjustment    Int                    @default(0)
+  quantityTransferred   Int                    @default(0)
+  unitCost              Decimal                @db.Decimal(18, 2)
+  sellingPrice          Decimal                @db.Decimal(18, 2)
+  lineTotal             Decimal                @db.Decimal(18, 2)
+  taxTreatment          TaxTreatment           @default(NONE)
+  taxRate               Decimal                @default(0) @db.Decimal(5, 2)
+  taxableAmount         Decimal                @default(0) @db.Decimal(18, 2)
+  taxAmount             Decimal                @default(0) @db.Decimal(18, 2)
+  pricesIncludeTax      Boolean                @default(false)
+  purchase              Purchase               @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product               Product                @relation(fields: [productId], references: [id])
+  saleAllocations       SaleItemAllocation[]
   sellerAssignmentItems SellerAssignmentItem[]
-  createdAt       DateTime            @default(now())
+  createdAt             DateTime               @default(now())
 
   @@index([productId])
   @@map("purchase_items")
 }
 
 model Sale {
-  id               String             @id @default(cuid())
-  saleNumber       String             @unique
-  voucherCode      String?
-  branchId         String
-  customerId       String?
-  createdById      String
-  status           SaleStatus         @default(COMPLETED)
-  paymentMethod    SalePaymentMethod
-  paymentStatus    PaymentStatus      @default(PAID)
-  subtotal         Decimal            @db.Decimal(18, 2)
-  discountTotal    Decimal            @default(0) @db.Decimal(18, 2)
-  total            Decimal            @db.Decimal(18, 2)
-  amountPaid       Decimal            @default(0) @db.Decimal(18, 2)
-  amountDue        Decimal            @default(0) @db.Decimal(18, 2)
-  soldAt           DateTime
-  note             String?
-  branch           Branch             @relation(fields: [branchId], references: [id])
-  customer         Customer?          @relation(fields: [customerId], references: [id])
-  createdBy        User               @relation("SaleCreatedBy", fields: [createdById], references: [id])
-  items            SaleItem[]
-  customerPayments CustomerPayment[]
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  id                 String                  @id @default(cuid())
+  saleNumber         String                  @unique
+  voucherCode        String?
+  branchId           String
+  customerId         String?
+  createdById        String
+  status             SaleStatus              @default(COMPLETED)
+  paymentMethod      SalePaymentMethod
+  paymentStatus      PaymentStatus           @default(PAID)
+  subtotal           Decimal                 @db.Decimal(18, 2)
+  discountTotal      Decimal                 @default(0) @db.Decimal(18, 2)
+  taxTreatment       TaxTreatment            @default(NONE)
+  taxRate            Decimal                 @default(0) @db.Decimal(5, 2)
+  taxableAmount      Decimal                 @default(0) @db.Decimal(18, 2)
+  taxAmount          Decimal                 @default(0) @db.Decimal(18, 2)
+  pricesIncludeTax   Boolean                 @default(false)
+  total              Decimal                 @db.Decimal(18, 2)
+  amountPaid         Decimal                 @default(0) @db.Decimal(18, 2)
+  amountDue          Decimal                 @default(0) @db.Decimal(18, 2)
+  soldAt             DateTime
+  note               String?
+  branch             Branch                  @relation(fields: [branchId], references: [id])
+  customer           Customer?               @relation(fields: [customerId], references: [id])
+  createdBy          User                    @relation("SaleCreatedBy", fields: [createdById], references: [id])
+  items              SaleItem[]
+  paymentAllocations SalePaymentAllocation[]
+  customerPayments   CustomerPayment[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
 
   @@index([branchId, soldAt])
   @@index([customerId, soldAt])
@@ -448,25 +488,30 @@ model Sale {
 }
 
 model SaleItem {
-  id          String              @id @default(cuid())
-  saleId      String
-  productId   String
-  quantity    Int
-  unitPrice   Decimal             @db.Decimal(18, 2)
-  discount    Decimal             @default(0) @db.Decimal(18, 2)
-  fixedDiscount Decimal             @default(0) @db.Decimal(18, 2)
-  lineTotal   Decimal             @db.Decimal(18, 2)
-  sale        Sale                @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product     Product             @relation(fields: [productId], references: [id])
-  allocations SaleItemAllocation[]
-  createdAt   DateTime            @default(now())
+  id               String               @id @default(cuid())
+  saleId           String
+  productId        String
+  quantity         Int
+  unitPrice        Decimal              @db.Decimal(18, 2)
+  discount         Decimal              @default(0) @db.Decimal(18, 2)
+  fixedDiscount    Decimal              @default(0) @db.Decimal(18, 2)
+  lineTotal        Decimal              @db.Decimal(18, 2)
+  taxTreatment     TaxTreatment         @default(NONE)
+  taxRate          Decimal              @default(0) @db.Decimal(5, 2)
+  taxableAmount    Decimal              @default(0) @db.Decimal(18, 2)
+  taxAmount        Decimal              @default(0) @db.Decimal(18, 2)
+  pricesIncludeTax Boolean              @default(false)
+  sale             Sale                 @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product          Product              @relation(fields: [productId], references: [id])
+  allocations      SaleItemAllocation[]
+  createdAt        DateTime             @default(now())
 
   @@index([productId])
   @@map("sale_items")
 }
 
 model SaleItemAllocation {
-  id                     String                 @id @default(cuid())
+  id                     String                       @id @default(cuid())
   saleItemId             String
   sourceType             StockOwnershipType
   purchaseItemId         String?
@@ -474,18 +519,33 @@ model SaleItemAllocation {
   sellerIntakeItemId     String?
   sellerAssignmentItemId String?
   quantity               Int
-  unitCost               Decimal?               @db.Decimal(18, 2)
-  sellerAmount           Decimal?               @db.Decimal(18, 2)
-  saleItem               SaleItem               @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
-  purchaseItem           PurchaseItem?          @relation(fields: [purchaseItemId], references: [id])
-  transferItem           TransferItem?          @relation(fields: [transferItemId], references: [id])
-  sellerIntakeItem       SellerIntakeItem?      @relation(fields: [sellerIntakeItemId], references: [id])
-  sellerAssignmentItem   SellerAssignmentItem?  @relation(fields: [sellerAssignmentItemId], references: [id])
+  unitCost               Decimal?                     @db.Decimal(18, 2)
+  sellerAmount           Decimal?                     @db.Decimal(18, 2)
+  saleItem               SaleItem                     @relation(fields: [saleItemId], references: [id], onDelete: Cascade)
+  purchaseItem           PurchaseItem?                @relation(fields: [purchaseItemId], references: [id])
+  transferItem           TransferItem?                @relation(fields: [transferItemId], references: [id])
+  sellerIntakeItem       SellerIntakeItem?            @relation(fields: [sellerIntakeItemId], references: [id])
+  sellerAssignmentItem   SellerAssignmentItem?        @relation(fields: [sellerAssignmentItemId], references: [id])
   settlementAllocations  SellerSettlementAllocation[]
   collectionAllocations  SellerCollectionAllocation[]
-  createdAt              DateTime               @default(now())
+  createdAt              DateTime                     @default(now())
 
   @@map("sale_item_allocations")
+}
+
+model SalePaymentAllocation {
+  id               String                      @id @default(cuid())
+  saleId           String
+  financeAccountId String?
+  method           SalePaymentAllocationMethod
+  amount           Decimal                     @db.Decimal(18, 2)
+  sale             Sale                        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  financeAccount   FinanceAccount?             @relation(fields: [financeAccountId], references: [id])
+  createdAt        DateTime                    @default(now())
+
+  @@index([saleId])
+  @@index([financeAccountId, createdAt])
+  @@map("sale_payment_allocations")
 }
 
 model SellerIntake {
@@ -508,23 +568,23 @@ model SellerIntake {
 }
 
 model SellerIntakeItem {
-  id                 String                @id @default(cuid())
+  id                 String                 @id @default(cuid())
   sellerIntakeId     String
   productId          String
   quantityBrought    Int
-  quantityAssigned   Int                   @default(0)
-  quantitySold       Int                   @default(0)
-  quantityReturned   Int                   @default(0)
-  sellerFixedPrice   Decimal               @db.Decimal(18, 2)
-  targetSellingPrice Decimal?              @db.Decimal(18, 2)
+  quantityAssigned   Int                    @default(0)
+  quantitySold       Int                    @default(0)
+  quantityReturned   Int                    @default(0)
+  sellerFixedPrice   Decimal                @db.Decimal(18, 2)
+  targetSellingPrice Decimal?               @db.Decimal(18, 2)
   serialNumbers      Json?
   bringingDate       DateTime
-  sellerIntake       SellerIntake          @relation(fields: [sellerIntakeId], references: [id], onDelete: Cascade)
-  product            Product               @relation(fields: [productId], references: [id])
+  sellerIntake       SellerIntake           @relation(fields: [sellerIntakeId], references: [id], onDelete: Cascade)
+  product            Product                @relation(fields: [productId], references: [id])
   assignmentItems    SellerAssignmentItem[]
   returnItems        SellerReturnItem[]
   saleAllocations    SaleItemAllocation[]
-  createdAt          DateTime              @default(now())
+  createdAt          DateTime               @default(now())
 
   @@index([productId, bringingDate])
   @@map("seller_intake_items")
@@ -550,27 +610,27 @@ model SellerAssignment {
 }
 
 model SellerAssignmentItem {
-  id                 String                @id @default(cuid())
+  id                 String               @id @default(cuid())
   sellerAssignmentId String
   sellerIntakeItemId String?
   purchaseItemId     String?
   transferItemId     String?
   productId          String
   quantityAssigned   Int
-  quantitySold       Int                   @default(0)
-  quantityReturned   Int                   @default(0)
-  unitCost           Decimal?              @db.Decimal(18, 2)
-  sellingPrice       Decimal?              @db.Decimal(18, 2)
+  quantitySold       Int                  @default(0)
+  quantityReturned   Int                  @default(0)
+  unitCost           Decimal?             @db.Decimal(18, 2)
+  sellingPrice       Decimal?             @db.Decimal(18, 2)
   assignmentDate     DateTime
   note               String?
-  sellerAssignment   SellerAssignment      @relation(fields: [sellerAssignmentId], references: [id], onDelete: Cascade)
-  sellerIntakeItem   SellerIntakeItem?     @relation(fields: [sellerIntakeItemId], references: [id])
-  purchaseItem       PurchaseItem?         @relation(fields: [purchaseItemId], references: [id])
-  transferItem       TransferItem?         @relation(fields: [transferItemId], references: [id])
-  product            Product               @relation(fields: [productId], references: [id])
+  sellerAssignment   SellerAssignment     @relation(fields: [sellerAssignmentId], references: [id], onDelete: Cascade)
+  sellerIntakeItem   SellerIntakeItem?    @relation(fields: [sellerIntakeItemId], references: [id])
+  purchaseItem       PurchaseItem?        @relation(fields: [purchaseItemId], references: [id])
+  transferItem       TransferItem?        @relation(fields: [transferItemId], references: [id])
+  product            Product              @relation(fields: [productId], references: [id])
   saleAllocations    SaleItemAllocation[]
   returnItems        SellerReturnItem[]
-  createdAt          DateTime              @default(now())
+  createdAt          DateTime             @default(now())
 
   @@index([productId, assignmentDate])
   @@index([purchaseItemId])
@@ -615,24 +675,24 @@ model SellerReturnItem {
 }
 
 model SellerSettlement {
-  id               String                     @id @default(cuid())
-  settlementNumber String                     @unique
+  id               String                       @id @default(cuid())
+  settlementNumber String                       @unique
   sellerId         String
   branchId         String
   createdById      String
   financeAccountId String?
   settlementDate   DateTime
   paymentMethod    AccountType
-  status           SettlementStatus           @default(POSTED)
-  amount           Decimal                    @db.Decimal(18, 2)
+  status           SettlementStatus             @default(POSTED)
+  amount           Decimal                      @db.Decimal(18, 2)
   note             String?
-  seller           Seller                     @relation(fields: [sellerId], references: [id])
-  branch           Branch                     @relation(fields: [branchId], references: [id])
-  createdBy        User                       @relation("SellerSettlementRecordedBy", fields: [createdById], references: [id])
-  financeAccount   FinanceAccount?            @relation("SellerSettlementFinanceAccount", fields: [financeAccountId], references: [id])
+  seller           Seller                       @relation(fields: [sellerId], references: [id])
+  branch           Branch                       @relation(fields: [branchId], references: [id])
+  createdBy        User                         @relation("SellerSettlementRecordedBy", fields: [createdById], references: [id])
+  financeAccount   FinanceAccount?              @relation("SellerSettlementFinanceAccount", fields: [financeAccountId], references: [id])
   allocations      SellerSettlementAllocation[]
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
 
   @@index([sellerId, settlementDate])
   @@map("seller_settlements")
@@ -651,24 +711,24 @@ model SellerSettlementAllocation {
 }
 
 model SellerCollection {
-  id               String                     @id @default(cuid())
-  collectionNumber String                     @unique
+  id               String                       @id @default(cuid())
+  collectionNumber String                       @unique
   sellerId         String
   branchId         String
   createdById      String
   financeAccountId String?
   collectionDate   DateTime
   paymentMethod    AccountType
-  status           SettlementStatus           @default(POSTED)
-  amount           Decimal                    @db.Decimal(18, 2)
+  status           SettlementStatus             @default(POSTED)
+  amount           Decimal                      @db.Decimal(18, 2)
   note             String?
-  seller           Seller                     @relation(fields: [sellerId], references: [id])
-  branch           Branch                     @relation(fields: [branchId], references: [id])
-  createdBy        User                       @relation("SellerCollectionRecordedBy", fields: [createdById], references: [id])
-  financeAccount   FinanceAccount?            @relation("SellerCollectionFinanceAccount", fields: [financeAccountId], references: [id])
+  seller           Seller                       @relation(fields: [sellerId], references: [id])
+  branch           Branch                       @relation(fields: [branchId], references: [id])
+  createdBy        User                         @relation("SellerCollectionRecordedBy", fields: [createdById], references: [id])
+  financeAccount   FinanceAccount?              @relation("SellerCollectionFinanceAccount", fields: [financeAccountId], references: [id])
   allocations      SellerCollectionAllocation[]
-  createdAt        DateTime                   @default(now())
-  updatedAt        DateTime                   @updatedAt
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
 
   @@index([sellerId, collectionDate])
   @@map("seller_collections")
@@ -687,24 +747,25 @@ model SellerCollectionAllocation {
 }
 
 model FinanceAccount {
-  id                String             @id @default(cuid())
-  branchId          String?
-  code              String             @unique
-  name              String
-  type              AccountType
-  bankName          String?
-  accountNumber     String?
-  isActive          Boolean            @default(true)
-  branch            Branch?            @relation(fields: [branchId], references: [id])
-  ledgerEntries     LedgerEntry[]
-  purchases         Purchase[]         @relation("PurchasePaymentAccount")
-  sellerSettlements SellerSettlement[] @relation("SellerSettlementFinanceAccount")
-  sellerCollections SellerCollection[] @relation("SellerCollectionFinanceAccount")
-  expenses          Expense[]          @relation("ExpenseFinanceAccount")
-  customerPayments  CustomerPayment[]
-  supplierPayments  SupplierPayment[]
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                     String                  @id @default(cuid())
+  branchId               String?
+  code                   String                  @unique
+  name                   String
+  type                   AccountType
+  bankName               String?
+  accountNumber          String?
+  isActive               Boolean                 @default(true)
+  branch                 Branch?                 @relation(fields: [branchId], references: [id])
+  ledgerEntries          LedgerEntry[]
+  purchases              Purchase[]              @relation("PurchasePaymentAccount")
+  sellerSettlements      SellerSettlement[]      @relation("SellerSettlementFinanceAccount")
+  sellerCollections      SellerCollection[]      @relation("SellerCollectionFinanceAccount")
+  expenses               Expense[]               @relation("ExpenseFinanceAccount")
+  customerPayments       CustomerPayment[]
+  supplierPayments       SupplierPayment[]
+  salePaymentAllocations SalePaymentAllocation[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
 
   @@index([branchId, type])
   @@map("finance_accounts")
@@ -798,19 +859,19 @@ model Transfer {
 }
 
 model TransferItem {
-  id         String   @id @default(cuid())
-  transferId String
-  productId  String
-  quantity   Int
-  quantityAdjustment Int @default(0)
-  quantityTransferred Int @default(0)
-  unitCost   Decimal? @db.Decimal(18, 2)
-  sellingPrice Decimal @db.Decimal(18, 2)
-  transfer   Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  product    Product  @relation(fields: [productId], references: [id])
-  saleAllocations SaleItemAllocation[]
+  id                    String                 @id @default(cuid())
+  transferId            String
+  productId             String
+  quantity              Int
+  quantityAdjustment    Int                    @default(0)
+  quantityTransferred   Int                    @default(0)
+  unitCost              Decimal?               @db.Decimal(18, 2)
+  sellingPrice          Decimal                @db.Decimal(18, 2)
+  transfer              Transfer               @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product               Product                @relation(fields: [productId], references: [id])
+  saleAllocations       SaleItemAllocation[]
   sellerAssignmentItems SellerAssignmentItem[]
-  createdAt  DateTime @default(now())
+  createdAt             DateTime               @default(now())
 
   @@map("transfer_items")
 }
@@ -896,17 +957,17 @@ model SupplierPayment {
 }
 
 model AlertRecord {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   branchId        String
   productId       String
   alertType       String
   threshold       Int
   quantityAtAlert Int
-  isResolved      Boolean  @default(false)
+  isResolved      Boolean   @default(false)
   resolvedAt      DateTime?
-  branch          Branch   @relation(fields: [branchId], references: [id])
-  product         Product  @relation(fields: [productId], references: [id])
-  createdAt       DateTime @default(now())
+  branch          Branch    @relation(fields: [branchId], references: [id])
+  product         Product   @relation(fields: [productId], references: [id])
+  createdAt       DateTime  @default(now())
 
   @@index([branchId, createdAt])
   @@map("alert_records")
@@ -955,4 +1016,22 @@ model InventoryAdjustment {
   @@index([branchId, createdAt])
   @@index([adjustmentType, createdAt])
   @@map("inventory_adjustments")
+}
+
+model BusinessSettings {
+  id                     String               @id @default("default")
+  vatEnabled             Boolean              @default(false)
+  salesVatEnabled        Boolean              @default(false)
+  purchaseVatEnabled     Boolean              @default(false)
+  defaultSalesVatRate    Decimal              @default(0) @db.Decimal(5, 2)
+  defaultPurchaseVatRate Decimal              @default(0) @db.Decimal(5, 2)
+  salesPriceMode         TaxPriceMode         @default(EXCLUSIVE)
+  purchasePriceMode      TaxPriceMode         @default(EXCLUSIVE)
+  purchaseVatTreatment   PurchaseVatTreatment @default(RECOVERABLE)
+  businessTaxId          String?
+  updatedById            String?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+
+  @@map("business_settings")
 }

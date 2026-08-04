@@ -8,9 +8,11 @@ import {
   LedgerEntryType,
   PaymentStatus,
   SalePaymentMethod,
+  SalePaymentAllocationMethod,
   SaleStatus,
   StockMovementType,
   StockOwnershipType,
+  TaxTreatment,
 } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -24,6 +26,7 @@ import {
 } from "@/lib/actions/common";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { calculateTax, roundCurrency } from "@/lib/tax";
 import {
   createAuditLog,
   createStockSnapshot,
@@ -296,9 +299,15 @@ export async function createSaleAction(
   const customerId = normalizeOptionalString(parsed.data.customerId);
   const financeAccountId = normalizeOptionalString(parsed.data.financeAccountId);
   const note = normalizeOptionalString(parsed.data.note);
-  const requiresFinanceAccount = parsed.data.paymentMethod !== "CREDIT";
+  const requiresFinanceAccount =
+    parsed.data.paymentMethod === "CASH" || parsed.data.paymentMethod === "BANK";
+  const hasPaidPortion =
+    parsed.data.paymentMethod !== "CREDIT" &&
+    (parsed.data.paymentMethod !== "MIXED" ||
+      parsed.data.mixedCashAmount > 0 ||
+      parsed.data.mixedBankAmount > 0);
 
-  if (requiresFinanceAccount && !hasPermission(actor.role, "accounts:use")) {
+  if (hasPaidPortion && !hasPermission(actor.role, "accounts:use")) {
     return {
       success: false,
       message: "You are not allowed to use finance accounts for paid sales.",
@@ -391,21 +400,129 @@ export async function createSaleAction(
       }
 
       const productMap = new Map(products.map((product) => [product.id, product]));
-      const subtotal = parsed.data.items.reduce((sum, item) => {
+      const settings = await tx.businessSettings.findUnique({
+        where: { id: "default" },
+      });
+      const vatAvailable = Boolean(
+        settings?.vatEnabled &&
+          settings.salesVatEnabled &&
+          Number(settings.defaultSalesVatRate) > 0,
+      );
+      const applyVat = vatAvailable && parsed.data.applyVat;
+      const taxRate = applyVat ? Number(settings?.defaultSalesVatRate ?? 0) : 0;
+      const priceMode = settings?.salesPriceMode ?? "EXCLUSIVE";
+      const calculatedItems = parsed.data.items.map((item) => {
         const netUnitPrice = item.unitPrice - item.discount;
 
         if (netUnitPrice < 0) {
           throw new Error("Discount cannot exceed unit price.");
         }
 
-        const lineTotal = item.quantity * netUnitPrice - (item.fixedDiscount ?? 0);
-        if (lineTotal < 0) {
+        const enteredLineAmount = item.quantity * netUnitPrice - (item.fixedDiscount ?? 0);
+        if (enteredLineAmount < 0) {
           throw new Error("Fixed discount cannot exceed the line item total.");
         }
 
-        return sum + lineTotal;
-      }, 0);
-      const isCredit = parsed.data.paymentMethod === "CREDIT";
+        return {
+          item,
+          tax: calculateTax({
+            amount: enteredLineAmount,
+            enabled: applyVat,
+            rate: taxRate,
+            priceMode,
+          }),
+        };
+      });
+      const subtotal = calculatedItems.reduce((sum, line) => sum + line.tax.netAmount, 0);
+      const taxAmount = calculatedItems.reduce((sum, line) => sum + line.tax.taxAmount, 0);
+      const total = calculatedItems.reduce((sum, line) => sum + line.tax.total, 0);
+      const requestedAllocations =
+        parsed.data.paymentMethod === "MIXED"
+          ? [
+              ...(parsed.data.mixedCashAmount > 0
+                ? [{
+                    method: SalePaymentAllocationMethod.CASH,
+                    amount: parsed.data.mixedCashAmount,
+                    financeAccountId: normalizeOptionalString(parsed.data.mixedCashAccountId),
+                  }]
+                : []),
+              ...(parsed.data.mixedBankAmount > 0
+                ? [{
+                    method: SalePaymentAllocationMethod.BANK,
+                    amount: parsed.data.mixedBankAmount,
+                    financeAccountId: normalizeOptionalString(parsed.data.mixedBankAccountId),
+                  }]
+                : []),
+              ...(parsed.data.mixedCreditAmount > 0
+                ? [{
+                    method: SalePaymentAllocationMethod.CREDIT,
+                    amount: parsed.data.mixedCreditAmount,
+                    financeAccountId: undefined,
+                  }]
+                : []),
+            ]
+          : [{
+              method:
+                parsed.data.paymentMethod === "CREDIT"
+                  ? SalePaymentAllocationMethod.CREDIT
+                  : parsed.data.paymentMethod === "BANK"
+                    ? SalePaymentAllocationMethod.BANK
+                    : SalePaymentAllocationMethod.CASH,
+              amount: total,
+              financeAccountId,
+            }];
+      const allocatedTotal = roundCurrency(
+        requestedAllocations.reduce((sum, allocation) => sum + allocation.amount, 0),
+      );
+      if (allocatedTotal !== roundCurrency(total)) {
+        throw new Error(
+          `Payment allocation must equal the sale total of ${roundCurrency(total).toFixed(2)}.`,
+        );
+      }
+
+      const allocationAccountIds = requestedAllocations
+        .map((allocation) => allocation.financeAccountId)
+        .filter((id): id is string => Boolean(id));
+      const allocationAccounts = await tx.financeAccount.findMany({
+        where: { id: { in: allocationAccountIds }, isActive: true },
+        select: { id: true, name: true, branchId: true, type: true },
+      });
+      const allocationAccountMap = new Map(
+        allocationAccounts.map((account) => [account.id, account]),
+      );
+      for (const allocation of requestedAllocations) {
+        if (allocation.method === SalePaymentAllocationMethod.CREDIT) {
+          if (!customerId) {
+            throw new Error("Select a customer for the credit portion of the sale.");
+          }
+          continue;
+        }
+        if (!allocation.financeAccountId) {
+          throw new Error(`Select the ${allocation.method.toLowerCase()} account.`);
+        }
+        const account = allocationAccountMap.get(allocation.financeAccountId);
+        if (!account) {
+          throw new Error("One or more selected payment accounts are unavailable.");
+        }
+        if (account.branchId && account.branchId !== branch.id) {
+          throw new Error("Payment accounts must belong to the sale branch.");
+        }
+        if (account.type !== allocation.method) {
+          throw new Error(`${allocation.method} portions must use a ${allocation.method.toLowerCase()} account.`);
+        }
+      }
+      const amountPaid = roundCurrency(
+        requestedAllocations
+          .filter((allocation) => allocation.method !== SalePaymentAllocationMethod.CREDIT)
+          .reduce((sum, allocation) => sum + allocation.amount, 0),
+      );
+      const amountDue = roundCurrency(total - amountPaid);
+      const paymentStatus =
+        amountDue <= 0
+          ? PaymentStatus.PAID
+          : amountPaid <= 0
+            ? PaymentStatus.UNPAID
+            : PaymentStatus.PARTIAL;
       const saleNumber = createDocumentNumber("SAL", soldAt);
 
       const sale = await tx.sale.create({
@@ -416,14 +533,19 @@ export async function createSaleAction(
           createdById: actor.id,
           status: SaleStatus.COMPLETED,
           paymentMethod: parsed.data.paymentMethod as keyof typeof SalePaymentMethod,
-          paymentStatus: isCredit ? PaymentStatus.UNPAID : PaymentStatus.PAID,
+          paymentStatus,
           subtotal: toDecimal(subtotal),
           discountTotal: toDecimal(
             parsed.data.items.reduce((sum, item) => sum + (item.quantity * item.discount) + (item.fixedDiscount ?? 0), 0),
           ),
-          total: toDecimal(subtotal),
-          amountPaid: toDecimal(isCredit ? 0 : subtotal),
-          amountDue: toDecimal(isCredit ? subtotal : 0),
+          taxTreatment: applyVat ? TaxTreatment.STANDARD : TaxTreatment.NONE,
+          taxRate: toDecimal(taxRate),
+          taxableAmount: toDecimal(applyVat ? subtotal : 0),
+          taxAmount: toDecimal(taxAmount),
+          pricesIncludeTax: applyVat && priceMode === "INCLUSIVE",
+          total: toDecimal(total),
+          amountPaid: toDecimal(amountPaid),
+          amountDue: toDecimal(amountDue),
           soldAt,
           ...(note ? { note } : {}),
         },
@@ -433,7 +555,19 @@ export async function createSaleAction(
         },
       });
 
-      for (const item of parsed.data.items) {
+      await tx.salePaymentAllocation.createMany({
+        data: requestedAllocations.map((allocation) => ({
+          saleId: sale.id,
+          method: allocation.method,
+          amount: toDecimal(allocation.amount),
+          ...(allocation.financeAccountId
+            ? { financeAccountId: allocation.financeAccountId }
+            : {}),
+        })),
+      });
+
+      for (const calculatedItem of calculatedItems) {
+        const { item, tax } = calculatedItem;
         const product = productMap.get(item.productId);
         const selectedOwnedBatchId = normalizeOptionalString(item.ownedBatchId);
 
@@ -441,8 +575,7 @@ export async function createSaleAction(
           throw new Error("Sale line references an unknown product.");
         }
 
-        const netUnitPrice = item.unitPrice - item.discount;
-        const lineTotal = item.quantity * netUnitPrice - (item.fixedDiscount ?? 0);
+        const netUnitPrice = tax.netAmount / item.quantity;
         const saleItem = await tx.saleItem.create({
           data: {
             saleId: sale.id,
@@ -451,7 +584,12 @@ export async function createSaleAction(
             unitPrice: toDecimal(item.unitPrice),
             discount: toDecimal(item.discount),
             fixedDiscount: toDecimal(item.fixedDiscount ?? 0),
-            lineTotal: toDecimal(lineTotal),
+            lineTotal: toDecimal(tax.netAmount),
+            taxTreatment: tax.taxTreatment,
+            taxRate: toDecimal(tax.taxRate),
+            taxableAmount: toDecimal(tax.taxableAmount),
+            taxAmount: toDecimal(tax.taxAmount),
+            pricesIncludeTax: tax.pricesIncludeTax,
           },
           select: {
             id: true,
@@ -569,18 +707,24 @@ export async function createSaleAction(
         });
       }
 
-      if (!isCredit) {
+      for (const allocation of requestedAllocations) {
+        if (
+          allocation.method === SalePaymentAllocationMethod.CREDIT ||
+          !allocation.financeAccountId
+        ) {
+          continue;
+        }
         await tx.ledgerEntry.create({
           data: {
             entryDate: soldAt,
             branchId: branch.id,
-            financeAccountId: financeAccount?.id ?? null,
+            financeAccountId: allocation.financeAccountId,
             direction: LedgerDirection.DEBIT,
-            amount: toDecimal(subtotal),
+            amount: toDecimal(allocation.amount),
             entryType: LedgerEntryType.SALE,
             referenceType: "Sale",
             referenceId: sale.id,
-            description: `Sale receipt for ${sale.saleNumber} (${parsed.data.paymentMethod})`,
+            description: `Sale receipt for ${sale.saleNumber} (${allocation.method})`,
           },
         });
       }
@@ -595,10 +739,15 @@ export async function createSaleAction(
           saleNumber: sale.saleNumber,
           branchId: branch.id,
           customerId: customerId ?? null,
-          total: subtotal,
+          subtotal,
+          taxAmount,
+          total,
           paymentMethod: parsed.data.paymentMethod,
-          financeAccountId: financeAccount?.id ?? null,
-          financeAccountName: financeAccount?.name ?? null,
+          paymentAllocations: requestedAllocations.map((allocation) => ({
+            method: allocation.method,
+            amount: allocation.amount,
+            financeAccountId: allocation.financeAccountId ?? null,
+          })),
           itemCount: parsed.data.items.length,
         },
       });
@@ -612,11 +761,13 @@ export async function createSaleAction(
     revalidatePath("/sales/sales-list");
     revalidatePath("/sales/daily-check");
     revalidatePath("/inventory/stock-overview");
+    revalidatePath("/inventory/bin-card");
     revalidatePath("/sellers/list");
     revalidatePath("/sellers/assigned-items");
     revalidatePath("/sellers/collections");
     revalidatePath("/sellers/settlements");
     revalidatePath("/reports/sellers");
+    revalidatePath("/reports/tax");
     revalidatePath("/finance/accounts");
     revalidatePath("/finance/cash");
     revalidatePath("/finance/ledger");

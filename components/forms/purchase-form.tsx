@@ -31,8 +31,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { createPurchaseAction } from "@/lib/actions/purchases";
 import type { PurchaseFormOptions } from "@/lib/types";
+import { calculateTax } from "@/lib/tax";
 import { cn, formatCurrency, formatDateForInput } from "@/lib/utils";
 import {
   purchaseSchema,
@@ -140,6 +142,7 @@ function getDefaultValues(
     settlementMode: "UNPAID",
     amountPaid: 0,
     purchasedAt: formatDateForInput(),
+    applyVat: false,
     note: "",
     items: [
       {
@@ -190,12 +193,22 @@ export function PurchaseForm({
   const supplierId = form.watch("supplierId");
   const settlementMode = form.watch("settlementMode");
   const paymentAccountId = form.watch("paymentAccountId");
+  const applyVat = form.watch("applyVat");
   const rawAmountPaid = Number(form.watch("amountPaid") || 0);
   const items = form.watch("items");
   const previousProductIds = useRef(defaultValues.items.map((item) => item.productId));
-  const total = items.reduce((sum, item) => {
+  const enteredSubtotal = items.reduce((sum, item) => {
     return sum + Number(item.quantity || 0) * Number(item.unitCost || 0);
   }, 0);
+  const purchaseVatAvailable =
+    options.taxSettings.vatEnabled && options.taxSettings.purchaseVatEnabled;
+  const tax = calculateTax({
+    amount: enteredSubtotal,
+    enabled: purchaseVatAvailable && Boolean(applyVat),
+    rate: options.taxSettings.defaultPurchaseVatRate,
+    priceMode: options.taxSettings.purchasePriceMode,
+  });
+  const total = tax.total;
   const availableAccounts = useMemo(
     () =>
       options.accounts.filter(
@@ -680,10 +693,37 @@ export function PurchaseForm({
             </div>
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-0 sm:space-y-4 sm:p-6 sm:pt-0">
+            {purchaseVatAvailable ? (
+              <Controller
+                control={form.control}
+                name="applyVat"
+                render={({ field }) => (
+                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-border p-4">
+                    <div>
+                      <p className="text-sm font-semibold">Apply VAT</p>
+                      <p className="text-xs text-muted-foreground">
+                        {options.taxSettings.defaultPurchaseVatRate}% · {options.taxSettings.purchasePriceMode.toLowerCase()} costs
+                      </p>
+                    </div>
+                    <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                  </div>
+                )}
+              />
+            ) : null}
             <div className="rounded-2xl bg-muted/60 p-3 sm:p-4">
               <p className="text-sm text-muted-foreground">Calculated total</p>
               <p className="mt-2 text-3xl font-semibold">{formatCurrency(total)}</p>
             </div>
+            {tax.taxTreatment === "STANDARD" ? (
+              <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-muted-foreground">
+                    VAT ({tax.taxRate}%) {tax.pricesIncludeTax ? "included" : "added"}
+                  </span>
+                  <span className="font-semibold">{formatCurrency(tax.taxAmount)}</span>
+                </div>
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl border border-border/70 bg-card/80 p-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

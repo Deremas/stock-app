@@ -32,6 +32,12 @@ const reportOptions = [
     href: "/reports/discounts",
   },
   {
+    id: "vat-report",
+    name: "VAT Report",
+    description: "Output VAT, recoverable input VAT, and the net VAT position.",
+    href: "/reports/tax",
+  },
+  {
     id: "partner-exposure",
     name: "Seller Exposure",
     description:
@@ -62,7 +68,7 @@ const reportOptions = [
     name: "Item Bin Card",
     description:
       "Per-item movement ledger with dated quantity in, quantity out, and running balance.",
-    href: "/reports/bin-card",
+    href: "/inventory/bin-card",
   },
   {
     id: "low-stock",

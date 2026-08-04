@@ -8,6 +8,7 @@ import {
   PurchaseStatus,
   StockMovementType,
   StockOwnershipType,
+  TaxTreatment,
 } from "@/generated/prisma/enums";
 
 import type { ActionResult } from "@/lib/actions/common";
@@ -26,6 +27,7 @@ import {
 } from "@/lib/finance-ledger";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { calculateTax } from "@/lib/tax";
 import {
   createAuditLog,
   createStockSnapshot,
@@ -164,16 +166,40 @@ export async function createPurchaseAction(
       }
 
       const productMap = new Map(products.map((product) => [product.id, product]));
-      const subtotal = parsed.data.items.reduce((sum, item) => {
-        return sum + item.quantity * item.unitCost;
-      }, 0);
+      const settings = await tx.businessSettings.findUnique({
+        where: { id: "default" },
+      });
+      const vatAvailable = Boolean(
+        settings?.vatEnabled &&
+          settings.purchaseVatEnabled &&
+          Number(settings.defaultPurchaseVatRate) > 0,
+      );
+      const applyVat = vatAvailable && parsed.data.applyVat;
+      const taxRate = applyVat ? Number(settings?.defaultPurchaseVatRate ?? 0) : 0;
+      const priceMode = settings?.purchasePriceMode ?? "EXCLUSIVE";
+      const vatTreatment = settings?.purchaseVatTreatment ?? "RECOVERABLE";
+      const calculatedItems = parsed.data.items.map((item) => ({
+        item,
+        tax: calculateTax({
+          amount: item.quantity * item.unitCost,
+          enabled: applyVat,
+          rate: taxRate,
+          priceMode,
+        }),
+      }));
+      const subtotal = calculatedItems.reduce((sum, line) => sum + line.tax.netAmount, 0);
+      const taxAmount = calculatedItems.reduce((sum, line) => sum + line.tax.taxAmount, 0);
+      const total = calculatedItems.reduce((sum, line) => sum + line.tax.total, 0);
       const amountPaid =
         parsed.data.settlementMode === "UNPAID"
           ? 0
           : parsed.data.settlementMode === "FULL"
-            ? subtotal
+            ? total
             : parsed.data.amountPaid;
-      const amountDue = Math.max(0, Number((subtotal - amountPaid).toFixed(2)));
+      if (amountPaid > total) {
+        throw new Error("Amount paid cannot exceed the purchase total.");
+      }
+      const amountDue = Math.max(0, Number((total - amountPaid).toFixed(2)));
       const paymentStatus =
         amountPaid <= 0
           ? PaymentStatus.UNPAID
@@ -204,8 +230,13 @@ export async function createPurchaseAction(
           paymentStatus,
           subtotal: toDecimal(subtotal),
           discount: toDecimal(0),
-          tax: toDecimal(0),
-          total: toDecimal(subtotal),
+          tax: toDecimal(taxAmount),
+          taxTreatment: applyVat ? TaxTreatment.STANDARD : TaxTreatment.NONE,
+          taxRate: toDecimal(taxRate),
+          taxableAmount: toDecimal(applyVat ? subtotal : 0),
+          pricesIncludeTax: applyVat && priceMode === "INCLUSIVE",
+          vatTreatment,
+          total: toDecimal(total),
           amountPaid: toDecimal(amountPaid),
           amountDue: toDecimal(amountDue),
           purchasedAt,
@@ -217,21 +248,30 @@ export async function createPurchaseAction(
         },
       });
 
-      for (const item of parsed.data.items) {
+      for (const calculatedItem of calculatedItems) {
+        const { item, tax } = calculatedItem;
         const product = productMap.get(item.productId);
 
         if (!product) {
           throw new Error("Purchase line references an unknown product.");
         }
 
+        const inventoryLineCost =
+          applyVat && vatTreatment === "NON_RECOVERABLE" ? tax.total : tax.netAmount;
+        const inventoryUnitCost = inventoryLineCost / item.quantity;
         const purchaseItem = await tx.purchaseItem.create({
           data: {
             purchaseId: purchase.id,
             productId: product.id,
             quantity: item.quantity,
-            unitCost: toDecimal(item.unitCost),
+            unitCost: toDecimal(inventoryUnitCost),
             sellingPrice: toDecimal(item.sellingPrice),
-            lineTotal: toDecimal(item.quantity * item.unitCost),
+            lineTotal: toDecimal(tax.netAmount),
+            taxTreatment: tax.taxTreatment,
+            taxRate: toDecimal(tax.taxRate),
+            taxableAmount: toDecimal(tax.taxableAmount),
+            taxAmount: toDecimal(tax.taxAmount),
+            pricesIncludeTax: tax.pricesIncludeTax,
           },
           select: {
             id: true,
@@ -245,7 +285,7 @@ export async function createPurchaseAction(
             movementType: StockMovementType.PURCHASE,
             ownershipType: StockOwnershipType.OWNED,
             quantity: item.quantity,
-            unitCost: toDecimal(item.unitCost),
+            unitCost: toDecimal(inventoryUnitCost),
             unitValue: toDecimal(item.sellingPrice),
             movementDate: purchasedAt,
             sourceType: "Purchase",
@@ -325,7 +365,9 @@ export async function createPurchaseAction(
           purchaseNumber: purchase.purchaseNumber,
           branchId: branch.id,
           supplierId: supplier?.id ?? null,
-          total: subtotal,
+          subtotal,
+          taxAmount,
+          total,
           paymentStatus,
           amountPaid,
           amountDue,
@@ -346,9 +388,11 @@ export async function createPurchaseAction(
     revalidatePath("/finance/cash");
     revalidatePath("/finance/ledger");
     revalidatePath("/inventory/stock-overview");
+    revalidatePath("/inventory/bin-card");
     revalidatePath("/inventory/low-stock");
     revalidatePath("/inventory/out-of-stock");
     revalidatePath("/dashboard");
+    revalidatePath("/reports/tax");
 
     return {
       success: true,

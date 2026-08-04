@@ -65,6 +65,12 @@ export const navigationEntries: NavigationEntry[] = [
         icon: "transfers",
         permission: "inventory:view",
       },
+      {
+        title: "Item Bin Card",
+        href: "/inventory/bin-card",
+        icon: "stockMovements",
+        permission: "inventory:view",
+      },
     ],
   },
   {
@@ -264,6 +270,7 @@ const hiddenPageTitles: NavigationItem[] = [
   },
   { title: "Item Bin Card", href: "/reports/bin-card", icon: "reports" },
   { title: "Sales Reports", href: "/reports/sales", icon: "reports" },
+  { title: "VAT Report", href: "/reports/tax", icon: "reports" },
   { title: "Purchase Reports", href: "/reports/purchases", icon: "reports" },
   { title: "Seller Reports", href: "/reports/sellers", icon: "reports" },
   { title: "Finance Reports", href: "/reports/finance", icon: "reports" },

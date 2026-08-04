@@ -64,6 +64,43 @@ describe("sale validation", () => {
 
     expect(result.success).toBe(false);
   });
+
+  it("accepts a cash and bank split payment", () => {
+    const result = saleSchema.safeParse({
+      branchId: "branch-hq",
+      customerId: "",
+      paymentMethod: "MIXED",
+      mixedCashAmount: 40,
+      mixedCashAccountId: "cash-1",
+      mixedBankAmount: 60,
+      mixedBankAccountId: "bank-1",
+      mixedCreditAmount: 0,
+      soldAt: "2026-03-19T10:00",
+      items: [
+        { productId: "prd-1", quantity: 1, unitPrice: 100, discount: 0 },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("requires a customer when a split payment contains credit", () => {
+    const result = saleSchema.safeParse({
+      branchId: "branch-hq",
+      customerId: "",
+      paymentMethod: "MIXED",
+      mixedCashAmount: 40,
+      mixedCashAccountId: "cash-1",
+      mixedBankAmount: 0,
+      mixedCreditAmount: 60,
+      soldAt: "2026-03-19T10:00",
+      items: [
+        { productId: "prd-1", quantity: 1, unitPrice: 100, discount: 0 },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("purchase validation", () => {

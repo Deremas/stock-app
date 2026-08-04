@@ -1,4 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/session";
+import { getBusinessSettings } from "@/lib/business-settings";
 import {
   dedupeCashAccountsPerBranch,
   toFinanceAccountOption,
@@ -251,7 +252,7 @@ async function getSaleBranchStockOptions(
 export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
   const scope = await getCurrentBranchScope();
   const branchIds = scope.branches.map((branch) => branch.id);
-  const [suppliers, products, rawAccounts] = await Promise.all([
+  const [suppliers, products, rawAccounts, taxSettings] = await Promise.all([
     prisma.supplier.findMany({
       where: {
         isActive: true,
@@ -289,6 +290,7 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
         },
       },
     }),
+    getBusinessSettings(),
   ]);
   const accounts = dedupeCashAccountsPerBranch(rawAccounts);
 
@@ -299,6 +301,7 @@ export async function getPurchaseFormOptions(): Promise<PurchaseFormOptions> {
     accounts: accounts.map(
       (account) => toFinanceAccountOption(account),
     ),
+    taxSettings,
   };
 }
 
@@ -312,6 +315,7 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
     branchStock,
     rawAccounts,
     sellerIntakeItems,
+    taxSettings,
   ] = await Promise.all([
     prisma.customer.findMany({
       where: {
@@ -395,6 +399,7 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
         },
       },
     }),
+    getBusinessSettings(),
   ]);
 
   const normalizedIntakeBatches = sellerIntakeItems
@@ -455,6 +460,7 @@ export async function getSaleFormOptions(): Promise<SaleFormOptions> {
     branchStock,
     ownedBatches: allBatches,
     accounts: accounts.map((account) => toFinanceAccountOption(account)),
+    taxSettings,
   };
 }
 

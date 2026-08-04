@@ -97,11 +97,56 @@ export default async function BinCardReport({ searchParams }: PageProps) {
       : Promise.resolve(user?.branches ?? []),
   ]);
 
+  const sourceIds = (sourceType: string) =>
+    movements
+      .filter((movement) => movement.sourceType === sourceType)
+      .map((movement) => movement.sourceId);
+  const [purchases, sales, intakes, assignments, returns, transfers, adjustments] =
+    await Promise.all([
+      prisma.purchase.findMany({
+        where: { id: { in: sourceIds("Purchase") } },
+        select: { id: true, purchaseNumber: true },
+      }),
+      prisma.sale.findMany({
+        where: { id: { in: sourceIds("Sale") } },
+        select: { id: true, saleNumber: true },
+      }),
+      prisma.sellerIntake.findMany({
+        where: { id: { in: sourceIds("SellerIntake") } },
+        select: { id: true, intakeNumber: true },
+      }),
+      prisma.sellerAssignment.findMany({
+        where: { id: { in: sourceIds("SellerAssignment") } },
+        select: { id: true, assignmentNumber: true },
+      }),
+      prisma.sellerReturn.findMany({
+        where: { id: { in: sourceIds("SellerReturn") } },
+        select: { id: true, returnNumber: true },
+      }),
+      prisma.transfer.findMany({
+        where: { id: { in: sourceIds("Transfer") } },
+        select: { id: true, transferNumber: true },
+      }),
+      prisma.inventoryAdjustment.findMany({
+        where: { id: { in: sourceIds("InventoryAdjustment") } },
+        select: { id: true, referenceNumber: true },
+      }),
+    ]);
+  const sourceReferences = new Map<string, string>([
+    ...purchases.map((row) => [row.id, row.purchaseNumber] as const),
+    ...sales.map((row) => [row.id, row.saleNumber] as const),
+    ...intakes.map((row) => [row.id, row.intakeNumber] as const),
+    ...assignments.map((row) => [row.id, row.assignmentNumber] as const),
+    ...returns.map((row) => [row.id, row.returnNumber] as const),
+    ...transfers.map((row) => [row.id, row.transferNumber] as const),
+    ...adjustments.map((row) => [row.id, row.referenceNumber] as const),
+  ]);
+
   const balances = new Map<string, number>();
   const rows: SimpleRow[] = [];
 
   for (const movement of movements) {
-    const balanceKey = `${movement.branchId}:${movement.productId}:${movement.ownershipType}`;
+    const balanceKey = `${movement.branchId}:${movement.productId}`;
     const balance = (balances.get(balanceKey) ?? 0) + movement.quantity;
     balances.set(balanceKey, balance);
 
@@ -118,14 +163,14 @@ export default async function BinCardReport({ searchParams }: PageProps) {
       branch: movement.branch.name,
       movementType: movement.movementType,
       ownershipType: movement.ownershipType,
-      source: `${movement.sourceType} · ${movement.sourceLineId ?? movement.sourceId}`,
+      source: `${movement.sourceType} • ${sourceReferences.get(movement.sourceId) ?? movement.sourceId}`,
       received: movement.quantity > 0 ? movement.quantity : null,
       issued: movement.quantity < 0 ? Math.abs(movement.quantity) : null,
       balance,
       unitCost: movement.unitCost ? Number(movement.unitCost) : null,
       unitValue: movement.unitValue ? Number(movement.unitValue) : null,
       counterparty: movement.counterpartyType
-        ? `${movement.counterpartyType} · ${movement.counterpartyId ?? "N/A"}`
+        ? `${movement.counterpartyType} • ${movement.counterpartyId ?? "N/A"}`
         : null,
     });
   }
@@ -135,7 +180,7 @@ export default async function BinCardReport({ searchParams }: PageProps) {
   return (
     <div className="space-y-5">
       <PageHeader
-        eyebrow="Reports"
+        eyebrow="Inventory"
         title="Item Bin Card"
         description="Chronological quantity-in, quantity-out, and running balance for each item. Filter by item and date for a printable stock ledger."
       />
@@ -146,7 +191,7 @@ export default async function BinCardReport({ searchParams }: PageProps) {
               <option value="">All active items</option>
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
-                  {product.name} · {product.sku}
+                  {product.name} • {product.sku}
                 </option>
               ))}
             </Select>
